@@ -32,6 +32,9 @@ async def transform_article(ctx: dict, article_id: int) -> None:
             await session.commit()
             log.info("worker.transform.done article_id=%d", article_id)
         except Exception:
+            # Single-shot contract (max_tries=1): roll back the partial update,
+            # delete the article_fakes row so the job is not retried or left
+            # pending, then commit the deletion.
             await session.rollback()
             await session.execute(
                 sa.delete(ArticleFake).where(ArticleFake.article_id == article_id)
