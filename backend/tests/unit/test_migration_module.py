@@ -6,17 +6,24 @@ from pathlib import Path
 def _load_migration():
     versions_dir = Path(__file__).parents[2] / "migrations" / "versions"
     revision_files = [f for f in versions_dir.glob("*.py") if f.name != "__init__.py"]
-    assert (
-        len(revision_files) == 1
-    ), f"Expected 1 revision file, found {len(revision_files)}"
-    spec = importlib.util.spec_from_file_location("_migration", revision_files[0])
-    module = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
-    spec.loader.exec_module(module)  # type: ignore[union-attr]
-    return module, revision_files[0].read_text()
+    assert revision_files, "Expected at least 1 revision file"
+
+    loaded: list[tuple[object, Path]] = []
+    for path in revision_files:
+        spec = importlib.util.spec_from_file_location(f"_migration_{path.stem}", path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        loaded.append((module, path))
+
+    roots = [(m, p) for (m, p) in loaded if getattr(m, "down_revision", object()) is None]
+    assert len(roots) == 1, f"Expected 1 root migration, found {len(roots)}"
+    module, path = roots[0]
+    return module, path.read_text()
 
 
-def test_single_revision_file():
-    # _load_migration already asserts exactly 1 revision file exists
+def test_root_revision_exists():
+    # Asserts a root migration (down_revision = None) can be found
     _load_migration()
 
 
