@@ -24,14 +24,18 @@ def test_T_D1_no_os_environ_outside_config() -> None:
         if (
             re.search(r"\bos\.environ\b", text)
             or re.search(r"\bos\.getenv\b", text)
-            or re.search(r"^\s*from\s+os\s+import\s+[^\n]*\b(getenv|environ)\b", text, re.M)
+            or re.search(
+                r"^\s*from\s+os\s+import\s+[^\n]*\b(getenv|environ)\b", text, re.M
+            )
         ):
             offenders.append(str(path.relative_to(REPO_ROOT)))
     assert offenders == [], f"os.environ/getenv outside config.py: {offenders}"
 
 
 def test_T_D2_env_var_names_match_contracts() -> None:
-    config_text = (REPO_ROOT / "backend" / "app" / "config.py").read_text(encoding="utf-8")
+    config_text = (REPO_ROOT / "backend" / "app" / "config.py").read_text(
+        encoding="utf-8"
+    )
     expected_in_use_by_0c = {"DATABASE_URL", "REDIS_URL"}
     declared_lower = set(re.findall(r"^\s*([a-z_][a-z0-9_]*)\s*:", config_text, re.M))
     declared_upper = {f.upper() for f in declared_lower}
@@ -45,13 +49,27 @@ def test_T_D2_env_var_names_match_contracts() -> None:
 
 def test_T_D3_no_committed_secrets() -> None:
     out = subprocess.run(
-        ["git", "grep", "-nE", r"OPENAI_API_KEY\s*=\s*sk-[A-Za-z0-9_-]{10,}",
-         "--", ":!.env.example", ":!*.md"],
-        cwd=REPO_ROOT, text=True, capture_output=True, check=False,
+        [
+            "git",
+            "grep",
+            "-nE",
+            r"OPENAI_API_KEY\s*=\s*sk-[A-Za-z0-9_-]{10,}",
+            "--",
+            ":!.env.example",
+            ":!*.md",
+        ],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
     )
     matches = [ln for ln in out.stdout.splitlines() if ln.strip()]
     tracked = subprocess.run(
-        ["git", "ls-files", ".env"], cwd=REPO_ROOT, text=True, capture_output=True, check=False
+        ["git", "ls-files", ".env"],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
     ).stdout.strip()
     assert tracked == "", f".env must not be tracked: {tracked}"
     assert matches == [], f"committed secret-shaped values: {matches}"
@@ -79,21 +97,30 @@ def test_T_D4_secret_value_not_in_logs() -> None:
     database_url = _backend_env("DATABASE_URL")
     if database_url:
         forbidden.append(("DATABASE_URL", database_url))
-        # Also flag the password segment in isolation, in case the URL gets parsed/rebuilt.
+        # Also flag the password segment in isolation, in case the URL gets
+        # parsed/rebuilt.
         m = re.search(r"://[^:/@\s]+:([^@\s]+)@", database_url)
         if m:
             forbidden.append(("DATABASE_URL password", m.group(1)))
 
-    assert forbidden, "could not read OPENAI_API_KEY/DATABASE_URL from backend container"
+    assert (
+        forbidden
+    ), "could not read OPENAI_API_KEY/DATABASE_URL from backend container"
 
     leaks = [(name, value) for name, value in forbidden if value in logs]
-    assert leaks == [], f"secret values leaked in backend logs: {[name for name, _ in leaks]}"
+    assert (
+        leaks == []
+    ), f"secret values leaked in backend logs: {[name for name, _ in leaks]}"
 
 
 def test_T_G3_env_var_names_match_contracts() -> None:
-    """Cross-contract framing of T-D2 — the same expectation viewed from contracts.md side."""
-    config_text = (REPO_ROOT / "backend" / "app" / "config.py").read_text(encoding="utf-8")
-    declared_upper = {f.upper() for f in re.findall(r"^\s*([a-z_][a-z0-9_]*)\s*:", config_text, re.M)}
+    """Cross-contract framing of T-D2 — same expectation from contracts.md side."""
+    config_text = (REPO_ROOT / "backend" / "app" / "config.py").read_text(
+        encoding="utf-8"
+    )
+    declared_upper = {
+        f.upper() for f in re.findall(r"^\s*([a-z_][a-z0-9_]*)\s*:", config_text, re.M)
+    }
     contracts_text = (REPO_ROOT / "contracts.md").read_text(encoding="utf-8")
     contract_vars = set(re.findall(r"^\|\s*`([A-Z_]+)`\s*\|", contracts_text, re.M))
     required = {"DATABASE_URL", "REDIS_URL"}

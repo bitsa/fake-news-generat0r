@@ -18,10 +18,9 @@ from ._helpers import (
     HEALTH_RESPONSE_BUDGET_S,
     REPO_ROOT,
     compose,
-    wait_for_healthy,
     wait_for_health_endpoint_ok,
+    wait_for_healthy,
 )
-
 
 # ---------- A. /health real connectivity ----------
 
@@ -46,7 +45,9 @@ def _exercise_dependency_down(stop_services: list[str], expected_body: dict) -> 
         elapsed = time.perf_counter() - start
         assert r.status_code == 503, f"expected 503, got {r.status_code}, body={r.text}"
         assert r.json() == expected_body, r.json()
-        assert elapsed <= HEALTH_RESPONSE_BUDGET_S, f"/health took {elapsed:.2f}s (budget {HEALTH_RESPONSE_BUDGET_S}s)"
+        assert (
+            elapsed <= HEALTH_RESPONSE_BUDGET_S
+        ), f"/health took {elapsed:.2f}s (budget {HEALTH_RESPONSE_BUDGET_S}s)"
     finally:
         for svc in stop_services:
             compose("start", svc, check=False)
@@ -67,14 +68,18 @@ def test_T_A4_both_down_returns_503() -> None:
 
 
 def test_T_A5_recovery_without_backend_restart() -> None:
-    """Stop postgres → recover → /health 200; backend container StartedAt must not change."""
+    """Stop postgres → recover → /health 200; backend StartedAt must not change."""
 
     def inspect_started_at() -> str:
         container_id = compose("ps", "-q", "backend").stdout.strip()
-        assert container_id, "could not resolve backend container id via `docker compose ps -q backend`"
+        assert (
+            container_id
+        ), "could not resolve backend container id via `docker compose ps -q backend`"
         out = subprocess.run(
             ["docker", "inspect", container_id, "--format", "{{.State.StartedAt}}"],
-            text=True, capture_output=True, check=True,
+            text=True,
+            capture_output=True,
+            check=True,
         )
         return out.stdout.strip()
 
@@ -92,7 +97,8 @@ def test_T_A5_recovery_without_backend_restart() -> None:
     assert body == {"status": "ok"}
     started_at_after = inspect_started_at()
     assert started_at_before == started_at_after, (
-        f"backend container restarted across kill/recover: {started_at_before!r} -> {started_at_after!r}"
+        f"backend container restarted across kill/recover: "
+        f"{started_at_before!r} -> {started_at_after!r}"
     )
 
 

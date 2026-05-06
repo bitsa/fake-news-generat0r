@@ -31,8 +31,12 @@ def _compose(
             timeout=timeout,
         )
     except subprocess.TimeoutExpired as exc:
-        stderr = exc.stderr.decode() if isinstance(exc.stderr, bytes) else (exc.stderr or "")
-        stdout = exc.stdout.decode() if isinstance(exc.stdout, bytes) else (exc.stdout or "")
+        stderr = (
+            exc.stderr.decode() if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+        )
+        stdout = (
+            exc.stdout.decode() if isinstance(exc.stdout, bytes) else (exc.stdout or "")
+        )
         raise AssertionError(
             f"`docker compose {' '.join(args)}` timed out after {timeout}s.\n"
             f"stdout:\n{stdout}\nstderr:\n{stderr}"

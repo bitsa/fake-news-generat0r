@@ -41,12 +41,12 @@ def test_T_C2_backend_depends_on_healthy() -> None:
     assert backend_block, "could not locate backend service block in docker-compose.yml"
     block = backend_block.group(1)
     assert "depends_on" in block
-    assert re.search(r"postgres:\s*\n\s*condition:\s*service_healthy", block), (
-        "backend.depends_on.postgres must specify condition: service_healthy"
-    )
-    assert re.search(r"redis:\s*\n\s*condition:\s*service_healthy", block), (
-        "backend.depends_on.redis must specify condition: service_healthy"
-    )
+    assert re.search(
+        r"postgres:\s*\n\s*condition:\s*service_healthy", block
+    ), "backend.depends_on.postgres must specify condition: service_healthy"
+    assert re.search(
+        r"redis:\s*\n\s*condition:\s*service_healthy", block
+    ), "backend.depends_on.redis must specify condition: service_healthy"
 
 
 def test_T_C3_real_uvicorn_and_openapi() -> None:
