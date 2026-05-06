@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -7,12 +8,16 @@ from alembic.config import Config
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from app.db import AsyncSessionLocal
 from app.exceptions import AppError
 from app.logging_config import configure_logging
 from app.redis_client import close_redis
-from app.routers import health
+from app.routers import health, scrape
+from app.services import scraper
 
 configure_logging()
+
+log = logging.getLogger(__name__)
 
 
 async def _run_migrations() -> None:
@@ -23,6 +28,12 @@ async def _run_migrations() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await _run_migrations()
+    try:
+        async with AsyncSessionLocal() as session:
+            await scraper.ingest_all(session)
+        log.info("startup.scrape.complete")
+    except Exception:
+        log.warning("startup.scrape.failed", exc_info=True)
     yield
     await close_redis()
 
@@ -39,3 +50,4 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
 
 
 app.include_router(health.router)
+app.include_router(scrape.router)
