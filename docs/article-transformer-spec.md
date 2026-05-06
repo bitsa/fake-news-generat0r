@@ -27,9 +27,10 @@ startup recovery re-enqueues any stale pending rows older than five minutes.
 
 ## User-Facing Behavior
 
-- **`POST /api/scrape` response** — the caller now receives three counts:
-  `{"inserted": N, "fetched": M, "enqueued": K}`. `K ≤ N` (enqueue is best-effort; a failed
-  enqueue does not abort the run). Status code remains `202 Accepted`.
+- **`POST /api/scrape` response** — the response shape is unchanged: `{"inserted": N, "fetched": M}`.
+  Status code remains `202 Accepted`. Enqueueing is an implementation detail; the caller does not
+  need to know whether jobs were submitted — the durability model ensures they will eventually be
+  processed.
 
 - **Article fake row creation** — immediately after a successful scrape, the database contains
   one `article_fakes` row per newly inserted article, with `transform_status = 'pending'`.
@@ -44,8 +45,9 @@ startup recovery re-enqueues any stale pending rows older than five minutes.
   No error is surfaced to the caller for a failed enqueue.
 
 - **Crash recovery on startup** — on every app startup, the lifespan hook re-enqueues any
-  `article_fakes` row with `transform_status = 'pending'` and `created_at < NOW() - 5 min`.
-  Rows created within the last five minutes are left alone (assumed in-flight).
+  `article_fakes` row with `transform_status = 'pending'` and
+  `created_at < NOW() - settings.transform_recovery_threshold_minutes`.
+  Rows created within the threshold window are left alone (assumed in-flight).
 
 - **Non-existent article** — if a worker job fires for an `article_id` that does not exist in
   the DB, the job exits silently (logs the skip, returns). No exception propagates to ARQ.
@@ -56,11 +58,8 @@ startup recovery re-enqueues any stale pending rows older than five minutes.
 
 ### `POST /api/scrape` response shape
 
-- [ ] The endpoint returns `{"inserted": N, "fetched": M, "enqueued": K}` — all three keys
-  present and all values are non-negative integers.
-- [ ] `inserted` and `fetched` carry the same semantics as before this task (article count and
-  raw RSS entry count, respectively).
-- [ ] `enqueued` equals the number of ARQ jobs successfully submitted in this run (0 ≤ K ≤ N).
+- [ ] The endpoint response shape is unchanged: `{"inserted": N, "fetched": M}` — both values
+  are non-negative integers with the same semantics as before this task.
 - [ ] Status code is `202 Accepted` on success.
 - [ ] 503 error path (all sources fail) is unchanged — the endpoint still returns 503 when all
   RSS sources fail.
@@ -97,9 +96,12 @@ startup recovery re-enqueues any stale pending rows older than five minutes.
 ### Startup recovery
 
 - [ ] On app startup, `article_fakes` rows with `transform_status = 'pending'` AND
-  `created_at < NOW() - interval '5 min'` are re-enqueued before the regular scrape runs.
+  `created_at < NOW() - interval '<transform_recovery_threshold_minutes> min'` are re-enqueued
+  before the regular scrape runs (threshold is `settings.transform_recovery_threshold_minutes`,
+  default `5`).
 - [ ] `article_fakes` rows with `transform_status = 'pending'` AND
-  `created_at >= NOW() - interval '5 min'` are **not** re-enqueued.
+  `created_at >= NOW() - interval '<transform_recovery_threshold_minutes> min'` are **not**
+  re-enqueued.
 - [ ] `article_fakes` rows with `transform_status = 'completed'` are never re-enqueued by the
   recovery step.
 
