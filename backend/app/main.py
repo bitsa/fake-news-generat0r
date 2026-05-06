@@ -1,5 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from alembic.command import upgrade as alembic_upgrade
 from alembic.config import Config
@@ -15,7 +16,7 @@ configure_logging()
 
 
 async def _run_migrations() -> None:
-    cfg = Config("alembic.ini")
+    cfg = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
     await asyncio.to_thread(alembic_upgrade, cfg, "head")
 
 

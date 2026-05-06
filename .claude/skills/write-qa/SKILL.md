@@ -51,7 +51,7 @@ Then read the existing unit tests to understand what the dev wrote:
 
 Also read interface/type definitions (not implementation logic) to understand
 what shapes the tests assert against:
-- `backend/app/sources.py`, `models.py`, `schemas/` as relevant.
+- `backend/app/sources.py`, `backend/app/models.py`, `backend/app/schemas/` as relevant.
 - `frontend/src/types/api.ts` and related files.
 
 Do not read the dev doc. Do not read other tasks' docs.

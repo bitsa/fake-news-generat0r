@@ -124,7 +124,7 @@ feed query (INNER JOIN semantics exclude it).
 ## How to Test
 
 All tests that interact with the database are **integration tests** against a running Postgres
-container (started via `docker-compose up db` or the project's test Compose profile). Tests that
+container (started via `docker compose up postgres` or the project's test Compose profile). Tests that
 only inspect Python module state are **unit tests** requiring no database.
 
 | Test | Method |
@@ -247,7 +247,7 @@ condition changes. Relevant to Q-3.
 
 QA passes for the `schema` task when all of the following are true:
 
-1. **All 28 test cases pass** (S-1 through S-3, M-1 through M-4, E-1 through E-2, A-1 through A-5,
+1. **All 27 test cases pass** (S-1 through S-3, M-1 through M-4, E-1 through E-2, A-1 through A-5,
    F-1 through F-5, O-1 through O-5, Q-1 through Q-3) with no skips.
 
 2. **All edge cases are exercised**: EC-1 through EC-7 are covered by at least one passing test
@@ -255,7 +255,8 @@ QA passes for the `schema` task when all of the following are true:
    boundary conditions to verify within those tests).
 
 3. **No unexpected schema objects**: after `alembic upgrade head`, `information_schema` shows no
-   tables other than `articles` and `article_fakes`, and no enum types other than `source_type`.
+   application tables other than `articles` and `article_fakes` (allow Alembic's `alembic_version`
+   bookkeeping table), and no enum types other than `source_type`.
 
 4. **Downgrade is clean**: after `alembic downgrade base`, none of the above objects exist in the
    database.

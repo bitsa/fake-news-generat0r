@@ -12,10 +12,8 @@ class Settings(BaseSettings):
     openai_model_chat: str = "gpt-4o-mini"
     openai_temperature_transform: float = 0.9
     openai_temperature_chat: float = 0.7
-    prompt_version_transform: str = "v1"
-    rss_feeds: str = ""
+    scrape_max_per_source: int = 10
     scrape_interval_minutes: int = 60
-    llm_cache_ttl_seconds: int = 3600
 
 
 settings = Settings()

@@ -39,26 +39,27 @@ Common operations are wrapped in the repo-root `Makefile`. Run `make help` to se
 
 ## Environment variables
 
-All environment variables are listed in [`.env.example`](./.env.example) with placeholder defaults and inline comments. The canonical schema (defaults, types, and meaning) lives in [`contracts.md`](./contracts.md) under the **Environment Variables** section. When adding a new variable, update `contracts.md` first, then `.env.example`.
+All environment variables are listed in [`.env.example`](./.env.example) with placeholder defaults
+and inline comments. When adding a new variable, update `.env.example` and `backend/app/config.py`
+together.
 
-`OPENAI_API_KEY` is the only variable that must be replaced before running; the rest have working defaults.
+`OPENAI_API_KEY` is the only variable that must be replaced before running; the rest have working
+defaults.
 
 ## Doc structure
 
-The five shared docs at the repo root are the canonical source of truth — agents read them before writing any code:
+The canonical shared docs at the repo root — read before writing any code:
 
-- [`architecture.md`](./architecture.md) — components, services, data flow
-- [`contracts.md`](./contracts.md) — DB schema, REST API shapes, TypeScript types, env vars
-- [`conventions.md`](./conventions.md) — code style, logging, commit format, branching, testing
-- [`decisions.md`](./decisions.md) — ADRs with rationale
-- [`future_work.md`](./future_work.md) — explicit deferrals
+- [`context.md`](./context.md) — stack decisions, architectural rationale, coding standards
+- [`future_work.md`](./future_work.md) — explicit deferrals (Loom talking points)
 
-[`tracker.md`](./tracker.md) tracks the status of every task across iterations 0–3.
+[`tracker.md`](./tracker.md) tracks every task across iterations 0–3.
 
-Per-task documentation lives under `docs/iteration-{N}/`, with three files per task:
+Per-task documentation lives under `docs/`, with up to three files per task:
 
 - `{task-id}-spec.md` — what to build (acceptance criteria)
 - `{task-id}-dev.md` — how to build it (implementation plan)
 - `{task-id}-qa.md` — how to verify it (test plan)
 
-`plans/` holds the higher-level project brief, per-iteration outlines, and bootstrap session prompts.
+`plans/` holds the project brief, per-iteration outlines, and session prompts. Historical docs from
+earlier workflow versions are in `plans/obsolete/`.
