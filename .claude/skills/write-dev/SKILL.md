@@ -70,8 +70,11 @@ Write `docs/{task-name}/{task-name}-dev.md` with the following sections:
   what's already there.
 - **Implementation plan** — step-by-step. Granular enough that someone
   could follow it without reading your code.
-- **Unit tests required** — list the behaviors to cover with unit tests.
-  You will write these tests inline with the implementation.
+- **Unit tests required** — list the behaviors to cover with unit tests,
+  one entry per spec acceptance criterion. You will write these tests inline
+  with the implementation. Name each test function so the name alone maps
+  unambiguously to the criterion it covers — QA will audit coverage by test
+  name without reading the test body.
 - **Definition of done** — checklist derived from the spec's acceptance
   criteria.
 
