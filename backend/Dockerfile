@@ -14,7 +14,8 @@ COPY . .
 RUN uv sync --frozen \
     && chown -R app:app /app
 
-ENV PATH="/app/.venv/bin:$PATH"
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1
 
 USER app
 

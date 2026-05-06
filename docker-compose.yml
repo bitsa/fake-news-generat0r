@@ -5,6 +5,8 @@ services:
       POSTGRES_USER: fakenews
       POSTGRES_PASSWORD: fakenews
       POSTGRES_DB: fakenews
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -34,7 +36,7 @@ services:
     volumes:
       - ./backend:/app
       - /app/.venv
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-exclude", "__pycache__"]
 
   worker:
     build: ./backend

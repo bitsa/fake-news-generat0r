@@ -1,4 +1,5 @@
 import logging
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -25,11 +26,21 @@ class IngestResult:
 
 
 async def fetch_feed(source: Source) -> list[RawEntry]:
+    log.info("scraper.fetch.begin source=%s", source)
+    started = time.perf_counter()
     async with httpx.AsyncClient() as client:
         response = await client.get(FEED_URLS[source])
         response.raise_for_status()
     feed = feedparser.parse(response.text)
-    return feed.entries[: settings.scrape_max_per_source]
+    entries = feed.entries[: settings.scrape_max_per_source]
+    elapsed_ms = int((time.perf_counter() - started) * 1000)
+    log.info(
+        "scraper.fetch.ok source=%s entries=%d elapsed_ms=%d",
+        source,
+        len(entries),
+        elapsed_ms,
+    )
+    return entries
 
 
 def parse_entry(entry: RawEntry, source: Source) -> Article | None:
@@ -55,11 +66,13 @@ def parse_entry(entry: RawEntry, source: Source) -> Article | None:
 
 
 async def ingest_all(session: AsyncSession) -> IngestResult:
+    sources = list(Source)
+    log.info("scraper.ingest.begin sources=%d", len(sources))
     all_inserted: list[Article] = []
     total_fetched: int = 0
     failed: int = 0
 
-    for source in Source:
+    for source in sources:
         try:
             raw_entries = await fetch_feed(source)
             valid_articles: list[Article] = []
@@ -75,6 +88,7 @@ async def ingest_all(session: AsyncSession) -> IngestResult:
                 valid_articles.append(article)
 
             total_fetched += len(raw_entries)
+            source_inserted: list[Article] = []
 
             if valid_articles:
                 stmt = (
@@ -95,9 +109,16 @@ async def ingest_all(session: AsyncSession) -> IngestResult:
                     .returning(Article)
                 )
                 result = await session.execute(stmt)
-                all_inserted.extend(result.scalars().all())
+                source_inserted = list(result.scalars().all())
 
             await session.commit()
+            all_inserted.extend(source_inserted)
+            log.info(
+                "scraper.source.ok source=%s fetched=%d inserted=%d",
+                source,
+                len(raw_entries),
+                len(source_inserted),
+            )
 
         except Exception:
             await session.rollback()
@@ -105,7 +126,13 @@ async def ingest_all(session: AsyncSession) -> IngestResult:
             failed += 1
             continue
 
-    if failed == len(list(Source)):
+    if failed == len(sources):
         raise ServiceUnavailableError("All RSS sources failed")
 
+    log.info(
+        "scraper.ingest.complete fetched=%d inserted=%d failed=%d",
+        total_fetched,
+        len(all_inserted),
+        failed,
+    )
     return IngestResult(inserted=all_inserted, fetched=total_fetched)

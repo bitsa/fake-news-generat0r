@@ -13,27 +13,9 @@ make up                  # starts the stack
 make health              # smoke check
 
 1) adds requestId on ChatMessage + a unique constraint (articleId, requestId, role) — if an SSE stream drops and the client retries, no double-insert.
-2) 429 handling + re-queue in ARQ worker
+2) 429 handling + re-queue in ARQ worker < --- this was dereferred for the scope. BUt let's use this to put together a document at the end - what I'd add given more time. Retry for this + re-queue or exponential backoff with failed proper handling
 
-3) The transform_status addition I recommended isn't just about showing a spinner — it closes this durability gap. The flow would become:
-
-POST /api/scrape
-  → INSERT INTO articles ... ON CONFLICT (url) DO NOTHING
-  → if inserted: INSERT INTO article_fakes (article_id, transform_status='pending')
-  → enqueue ARQ job (best-effort — queue is an optimisation, not the source of truth)
-
-ARQ worker
-  → UPDATE article_fakes SET transform_status='processing'
-  → call OpenAI
-  → UPDATE article_fakes SET fake_title=..., transform_status='completed'
-  → on failure: UPDATE article_fakes SET transform_status='failed', transform_error=...
-
-Recovery (startup or cron)
-  → SELECT article_id FROM article_fakes WHERE transform_status = 'pending' AND created_at < NOW() - interval '5 min'
-  → re-enqueue any stuck ones
-The DB becomes the source of truth. The ARQ queue becomes a fast-path delivery mechanism, not the only record that work exists.
-
-1) IMPROTANT :
+3) IMPROTANT :
 After POST /api/scrape returns, the frontend is responsible for showing results without requiring a manual refresh. Use React Query polling with a smart stop condition.
 
 Flow:
@@ -48,62 +30,25 @@ refetchInterval: (data) =>
   data?.some(a => a.transform_status === 'pending' || a.transform_status === 'processing')
     ? 3000
     : false
+
+    This above code should have a logic to only keep polling for x long or x times. 
+    
 Dependency: This requires transform_status as a column on article_fakes (values: pending, processing, completed, failed). Without it the frontend cannot distinguish "still transforming" from "permanently failed" and has no clean stop condition.
 
 What this avoids: No WebSocket, no SSE on the scrape endpoint, no new scrape_jobs table, no new status endpoints. React Query's refetchInterval handles the entire polling lifecycle natively.
 
-1) next steps : AI transformation + queue
-Will need to break this up into 2 tasks openAI integration and queue set up and flow.
+1.
 
-Task draft: article-transformer (next task after rss-scraper is done)
+Task: Add a periodic recovery sweep for stuck article_fakes rows. Do this when creating a cron job for scraping
 
-Context:
-  rss-scraper is complete. scraper.ingest_all(session) runs on startup,
-  upserts articles, and returns list[Article] for newly inserted rows.
-  No article_fakes rows exist yet. The ARQ worker infrastructure exists
-  (arq is installed, redis is running via Docker Compose) but is unused.
+Context: Today, recover_stale_pending (in backend/app/services/transformer.py) only runs once, in the FastAPI lifespan startup hook. If the API process stays up for days/weeks while individual ARQ workers crash, orphan rows with transform_status='pending' and created_at older than transform_recovery_threshold_minutes (default 5) will accumulate in the DB and never get re-enqueued until the next restart.
 
-What this task adds:
+What to do: Register recover_stale_pending as an ARQ cron job in WorkerSettings.cron_jobs (in backend/app/workers/transform.py) so it runs every N minutes on the worker side — turning recovery from a startup-only safety net into a continuous background sweep. Suggested cadence: every 2–5 minutes. The worker function will need to build its own AsyncSession and reuse the existing ArqRedis from ctx, the same way transform_article does. Keep the lifespan call too — belt and suspenders is fine.
 
-  1. Immediately after scraper.ingest_all() returns, for each new Article:
-       INSERT INTO article_fakes (article_id, transform_status='pending')
-       Enqueue an ARQ job: transform_article(article_id)
-     Both writes happen before the lifespan continues. Pending rows are
-     the durability record — if the queue is wiped, the row survives.
+Constraints:
 
-  2. An ARQ worker job (backend/app/worker.py):
-       async def transform_article(ctx, article_id: int)
-       - Fetch the Article from DB
-       - Call OpenAI (mock in tests) to generate fake_title + fake_description
-         using settings.openai_model_transform / openai_temperature_transform
-       - On success: UPDATE article_fakes SET transform_status='completed',
-         title=..., description=..., model=..., temperature=...
-       - On failure: DELETE FROM article_fakes WHERE article_id=...
-         Log the error. No retry (max_tries=1).
+Do not add failed/processing/transform_error to the schema — two-state lifecycle (pending → completed or row deleted) is intentional. See feedback_schema_no_failure_states.md.
+No new infra (no Celery beat, no external scheduler) — must use ARQ's built-in cron_jobs.
+Add a unit test that verifies the cron entry is registered and points at recover_stale_pending.
 
-  3. A new coordinator: backend/app/services/ingestor.py
-       async def run(session: AsyncSession, arq_pool: ArqRedis) -> int
-       - Calls scraper.ingest_all(session) → list[Article]
-       - Inserts pending article_fakes rows for each
-       - Enqueues ARQ jobs (best-effort — log warning if enqueue fails,
-         do not abort)
-       - Returns count of jobs enqueued
-     main.py lifespan switches from scraper.ingest_all() to ingestor.run().
-     scraper.py is untouched.
-
-  4. Recovery: on startup, re-enqueue any article_fakes rows where
-     transform_status='pending' AND created_at < NOW() - interval '5 min'
-     (handles crash-during-flight from a prior run).
-
-Files to create:
-  backend/app/services/ingestor.py
-  backend/app/worker.py
-  backend/tests/unit/test_ingestor.py
-  backend/tests/unit/test_worker.py
-
-Files to modify:
-  backend/app/main.py — switch lifespan call; wire ARQ pool
-
-Out of scope:
-  API endpoints, frontend, scheduled scraping, retry storms, DLQ.
-  scraper.py is not modified.
+1. Good to have : when giving article to AI : ask them to give back a 1 word category name out of possible outputs : "Climate" "tech" "markets" "politics" etc etc.

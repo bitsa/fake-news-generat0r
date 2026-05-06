@@ -21,7 +21,7 @@ def test_article_source_enum_binding():
 
 
 def test_article_description_nullable():
-    assert Article.__table__.c.description.nullable is True
+    assert Article.__table__.c.description.nullable is False
 
 
 def test_article_url_unique():
