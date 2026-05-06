@@ -90,7 +90,7 @@ appearing in the response body.
     `fake.created_at` is always present (NOT NULL in DB).
 
 11. **`source` field serialisation.** `article.source` is the string value of the `Source` StrEnum
-    (e.g. `"NYT"`, `"NPR"`, `"GUARDIAN"`), not an enum index.
+    (e.g. `"NYT"`, `"NPR"`, `"Guardian"`), not an enum index.
 
 12. **Datetime serialisation.** All `datetime` fields (`published_at`, `created_at`) are serialised
     as ISO 8601 strings with timezone (`Z` suffix or `+00:00`).
@@ -99,7 +99,7 @@ appearing in the response body.
     or `403`).
 
 14. **Registered under `/api` prefix.** The full URL path is `/api/articles`, consistent with
-    `/api/scrape` and `/api/health`.
+    `/api/scrape`. (Health lives at `/health` — no `/api` prefix by convention.)
 
 ---
 
@@ -115,18 +115,15 @@ appearing in the response body.
 
 ---
 
-## Open Questions / Assumptions
+## Assumptions (resolved)
 
-1. **`get_session` vs `get_db` naming.** `backend/app/db.py` already exports `get_session()` (an
-   `AsyncGenerator[AsyncSession, None]` dependency), not `get_db`. The plan file calls it `get_db`,
-   but implementing a second identically-shaped function would be dead code. **Assumption:** the
-   router uses `get_session` as-is. Sign-off needed if the intent was to rename or alias.
+1. **`get_session` naming.** `backend/app/db.py` exports `get_session()`, not `get_db`. The router
+   uses `get_session` as-is — the name is more precise and no rename is warranted.
 
-2. **Nullable fields on `completed` fakes.** The DB schema allows `title`, `description`, `model`,
-   and `temperature` to be `NULL` even when `transform_status = 'completed'`. The plan's
-   `FakeData` model marks them as `str | None` / `float | None`. **Assumption:** a completed fake
-   with null content is a valid (if degraded) state and the endpoint surfaces it rather than
-   filtering it out.
+2. **Nullable fields on `completed` fakes.** The schema allows `title`, `description`, `model`, and
+   `temperature` to be `NULL` even at `transform_status = 'completed'`. No DB-level tightening —
+   the worker sets all four fields before flipping status, and that invariant is enforced in worker
+   unit tests rather than schema complexity. The endpoint surfaces completed fakes as-is.
 
-3. **No response envelope versioning.** The shape is defined once here and not versioned.
-   **Assumption:** any breaking change to this shape is a new spec revision, not a versioned path.
+3. **No response envelope versioning.** Any breaking change to the response shape is a new spec
+   revision, not a versioned path.

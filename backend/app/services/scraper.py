@@ -74,7 +74,7 @@ async def ingest_all(session: AsyncSession) -> IngestResult:
                     continue
                 valid_articles.append(article)
 
-            total_fetched += len(valid_articles)
+            total_fetched += len(raw_entries)
 
             if valid_articles:
                 stmt = (
@@ -100,6 +100,7 @@ async def ingest_all(session: AsyncSession) -> IngestResult:
             await session.commit()
 
         except Exception:
+            await session.rollback()
             log.warning("scraper.source.failed source=%s", source, exc_info=True)
             failed += 1
             continue
