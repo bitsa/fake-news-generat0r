@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     openai_temperature_chat: float = 0.7
     scrape_max_per_source: int = 10
     scrape_interval_minutes: int = 60
+    transform_recovery_threshold_minutes: int = 5
 
 
 settings = Settings()

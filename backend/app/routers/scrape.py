@@ -1,13 +1,19 @@
+from arq.connections import ArqRedis
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.arq_client import get_arq_pool
 from app.db import get_session
-from app.services import scraper
+from app.services import scraper, transformer
 
 router = APIRouter(prefix="/api")
 
 
 @router.post("/scrape", status_code=202)
-async def scrape(session: AsyncSession = Depends(get_session)) -> dict:
+async def scrape(
+    session: AsyncSession = Depends(get_session),
+    arq_pool: ArqRedis = Depends(get_arq_pool),
+) -> dict:
     result = await scraper.ingest_all(session)
+    await transformer.create_and_enqueue(session, arq_pool, result.inserted)
     return {"inserted": len(result.inserted), "fetched": result.fetched}
