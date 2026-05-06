@@ -62,8 +62,10 @@ the API consumers reading `article_fakes` rows. From the outside:
   prompt with the article content), the OpenAI response body, or the API
   key — at any log level.
 - **`.env.example`** documents `OPENAI_REQUEST_TIMEOUT_SECONDS` and
-  `OPENAI_MOCK_MODE` (the latter with guidance that local development
-  should set it to `true`).
+  `OPENAI_MOCK_MODE`. The operator flips `OPENAI_MOCK_MODE` manually
+  in their local `.env` when they want to switch modes; the active
+  value in `.env.example` is the operator's convenience choice and is
+  not constrained by this spec.
 
 ## Acceptance criteria
 
@@ -128,7 +130,10 @@ Configuration / surface:
   field defaulting to `false`.
 - AC12. `.env.example` documents both `OPENAI_REQUEST_TIMEOUT_SECONDS`
   and `OPENAI_MOCK_MODE` with one-line descriptions in the same style
-  as the other entries in that file.
+  as the other entries in that file. The active value of the
+  `OPENAI_MOCK_MODE` line in `.env.example` is the operator's choice
+  and is not constrained by this spec; the Settings default (`false`)
+  is authoritative when the env var is unset.
 - AC13. The public worker contract is unchanged: `transform_article`
   remains an ARQ job function with signature
   `async def transform_article(ctx, article_id: int) -> None`, and
@@ -174,42 +179,30 @@ Quality gates:
 
 ## Open questions / assumptions
 
-1. **`OPENAI_MOCK_MODE` default in `.env.example` vs Settings default.**
-   `.env.example` currently has an uncommitted line
-   `OPENAI_MOCK_MODE=true` (committed during a prior task) even though
-   `config.py` does not yet define the field. The plan calls for the
-   Pydantic default to be `False` (so prod / Docker behaviour is the
-   real call), with `.env.example` documenting the variable and
-   recommending `true` for local dev. Need confirmation: should the
-   `.env.example` line stay as `OPENAI_MOCK_MODE=true` (active default
-   for anyone who copies the file verbatim) or be commented out so the
-   active default reflects the safer-for-prod `false`? Current spec
-   accepts either as long as the variable is documented (AC12) and the
-   Settings default is `false` (AC11). Flagging because the choice
-   affects what a fresh clone does on first `make up`.
-2. **Mock-mode content shape.** Plan specifies a single canonical
-   `(MOCK_TITLE, MOCK_DESCRIPTION)` pair re-used for every row in
-   mock mode. Confirmed acceptable for AC6 — same fixed strings on
-   every call, no per-article variation. Flagging only because this
-   is a behavioural choice (not derivable from existing code) and a
-   reviewer might expect per-article mock variation.
-3. **Definition of "satirical" for AC3.** The criterion as written is
-   verifiable only at the structural level (non-empty strings, distinct
-   from originals and from mock strings). A stronger semantic check
-   ("the output is recognisably satirical") is not testable without a
-   judge model and is therefore out of scope. Confirming this is
-   acceptable.
-4. **Documentation alignment.** The plan file references "ADR-9" and
-   uses ADR-numbered notation in `.env.example` (line 2). Project
-   `CLAUDE.md` says: "Do not reference 'ADR' or 'ADR-N' notation
-   anywhere." The `.env.example` comment is pre-existing drift, not
-   introduced by this task, but worth flagging because anyone touching
-   `.env.example` for AC12 may want to fix it in the same change.
-5. **Worker behaviour when `Article` row is missing but `ArticleFake`
-   exists.** The FK from `article_fakes` to `articles` (with
-   `ondelete=CASCADE`) makes this state structurally impossible, but
-   the worker still loads the article via `session.get(Article, id)`.
-   Spec assumes this path is treated as a defensive no-op (log +
-   return, no OpenAI call, no row deletion); it is not exercised in
-   normal flow and should not be a primary acceptance criterion.
-   Flagging in case the reviewer wants explicit treatment.
+Resolved:
+
+- **`OPENAI_MOCK_MODE` default.** Settings default is `false` (AC11);
+  `.env.example` must not silently enable mock mode for a fresh clone
+  (AC12). Existing `OPENAI_MOCK_MODE=true` line in `.env.example` is
+  pre-existing drift and will be corrected as part of this task.
+- **Mock-mode content shape.** Confirmed: a single canonical
+  `(MOCK_TITLE, MOCK_DESCRIPTION)` pair is re-used on every call in
+  mock mode (no per-article variation). Drives AC6.
+- **Definition of "satirical" for AC3.** Structural-only verification
+  (non-empty, distinct from originals and from mock strings) is
+  accepted. Semantic "is it actually satirical" is not testable
+  without a judge model and is not asserted.
+
+Also resolved:
+
+- **`.env.example` `ADR-9` reference.** Fixed during spec authoring:
+  line 2 now reads
+  `(see context.md "Redis is ARQ Broker Only")` instead of `(ADR-9)`.
+- **Worker behaviour when `Article` row is missing but `ArticleFake`
+  exists.** Treated as defensive code only (log + return, no OpenAI
+  call, no row deletion). Not an acceptance criterion; QA does not
+  need to verify this branch. Rationale: the FK + `ondelete=CASCADE`
+  makes the state structurally unreachable in normal operation, and
+  testing it would require constructing an impossible state.
+
+No open questions remain. Spec is ready for `/write-dev`.

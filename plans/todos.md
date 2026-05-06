@@ -52,3 +52,5 @@ No new infra (no Celery beat, no external scheduler) — must use ARQ's built-in
 Add a unit test that verifies the cron entry is registered and points at recover_stale_pending.
 
 1. Good to have : when giving article to AI : ask them to give back a 1 word category name out of possible outputs : "Climate" "tech" "markets" "politics" etc etc.
+
+2. Good to have : Judge model for generated fake articles
