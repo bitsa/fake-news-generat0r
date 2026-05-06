@@ -13,27 +13,9 @@ make up                  # starts the stack
 make health              # smoke check
 
 1) adds requestId on ChatMessage + a unique constraint (articleId, requestId, role) — if an SSE stream drops and the client retries, no double-insert.
-2) 429 handling + re-queue in ARQ worker
+2) 429 handling + re-queue in ARQ worker < --- this was dereferred for the scope. BUt let's use this to put together a document at the end - what I'd add given more time. Retry for this + re-queue or exponential backoff with failed proper handling
 
-3) The transform_status addition I recommended isn't just about showing a spinner — it closes this durability gap. The flow would become:
-
-POST /api/scrape
-  → INSERT INTO articles ... ON CONFLICT (url) DO NOTHING
-  → if inserted: INSERT INTO article_fakes (article_id, transform_status='pending')
-  → enqueue ARQ job (best-effort — queue is an optimisation, not the source of truth)
-
-ARQ worker
-  → UPDATE article_fakes SET transform_status='processing'
-  → call OpenAI
-  → UPDATE article_fakes SET fake_title=..., transform_status='completed'
-  → on failure: UPDATE article_fakes SET transform_status='failed', transform_error=...
-
-Recovery (startup or cron)
-  → SELECT article_id FROM article_fakes WHERE transform_status = 'pending' AND created_at < NOW() - interval '5 min'
-  → re-enqueue any stuck ones
-The DB becomes the source of truth. The ARQ queue becomes a fast-path delivery mechanism, not the only record that work exists.
-
-1) IMPROTANT :
+3) IMPROTANT :
 After POST /api/scrape returns, the frontend is responsible for showing results without requiring a manual refresh. Use React Query polling with a smart stop condition.
 
 Flow:
@@ -55,8 +37,8 @@ Dependency: This requires transform_status as a column on article_fakes (values:
 
 What this avoids: No WebSocket, no SSE on the scrape endpoint, no new scrape_jobs table, no new status endpoints. React Query's refetchInterval handles the entire polling lifecycle natively.
 
+1.
 
-3. 
 Task: Add a periodic recovery sweep for stuck article_fakes rows. Do this when creating a cron job for scraping
 
 Context: Today, recover_stale_pending (in backend/app/services/transformer.py) only runs once, in the FastAPI lifespan startup hook. If the API process stays up for days/weeks while individual ARQ workers crash, orphan rows with transform_status='pending' and created_at older than transform_recovery_threshold_minutes (default 5) will accumulate in the DB and never get re-enqueued until the next restart.
@@ -68,3 +50,5 @@ Constraints:
 Do not add failed/processing/transform_error to the schema — two-state lifecycle (pending → completed or row deleted) is intentional. See feedback_schema_no_failure_states.md.
 No new infra (no Celery beat, no external scheduler) — must use ARQ's built-in cron_jobs.
 Add a unit test that verifies the cron entry is registered and points at recover_stale_pending.
+
+1. Good to have : when giving article to AI : ask them to give back a 1 word category name out of possible outputs : "Climate" "tech" "markets" "politics" etc etc.

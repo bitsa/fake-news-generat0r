@@ -45,4 +45,4 @@ async def transform_article(ctx: dict, article_id: int) -> None:
 class WorkerSettings:
     functions = [transform_article]
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
-    max_tries = 3
+    max_tries = 1
