@@ -16,9 +16,8 @@ def _load_migration():
 
 
 def test_single_revision_file():
-    versions_dir = Path(__file__).parents[2] / "migrations" / "versions"
-    revision_files = [f for f in versions_dir.glob("*.py") if f.name != "__init__.py"]
-    assert len(revision_files) == 1
+    # _load_migration already asserts exactly 1 revision file exists
+    _load_migration()
 
 
 def test_down_revision_is_none():

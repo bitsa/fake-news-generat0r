@@ -131,7 +131,13 @@ for source in Source:
             stmt = (
                 pg_insert(Article)
                 .values([
-                    {c.key: getattr(a, c.key) for c in Article.__mapper__.column_attrs}
+                    {
+                        "source": a.source,
+                        "title": a.title,
+                        "url": a.url,
+                        "description": a.description,
+                        "published_at": a.published_at,
+                    }
                     for a in valid_articles
                 ])
                 .on_conflict_do_nothing(index_elements=["url"])
@@ -152,10 +158,6 @@ if failed == len(list(Source)):
 
 return IngestResult(inserted=all_inserted, fetched=total_fetched)
 ```
-
-Note on bulk values dict: use only the columns that `parse_entry` populates —
-`source`, `title`, `url`, `description`, `published_at`. Do not include `id` or
-`created_at` (server defaults). Build the dict explicitly to avoid mapping noise.
 
 ### Step 3 — Create `backend/app/routers/scrape.py`
 

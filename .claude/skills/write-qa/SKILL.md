@@ -45,9 +45,9 @@ STEP 1 — READ (only these — nothing else)
 
 Then read the existing unit tests to understand what the dev wrote:
 - `backend/tests/unit/test_{task-name}*.py` and related unit test files.
-- Read test function names and one-line docstrings only. Do NOT read test
-  bodies or implementation logic — infer what each test covers from its
-  name alone.
+- Read test function names and one-line docstrings first.
+- If mapping is ambiguous, read only the test's assertions/expected behavior
+  (still do NOT read implementation logic) to confirm coverage.
 
 Also read interface/type definitions (not implementation logic) to understand
 what shapes the tests assert against:
@@ -74,8 +74,10 @@ Write `docs/{task-name}/{task-name}-qa.md` with the following sections:
 
 - **Pass / fail criteria** — QA passes when:
   1. Every acceptance criterion has at least one mapped test (zero UNCOVERED).
-  2. The test suite exits 0 with no failures and no skips on the mapped tests.
-  State the exact command to run (e.g. `pytest backend/tests/unit/ -v`).
+  2. The mapped tests exit 0 with no failures and no skips.
+  State the exact command to run for those mapped tests (example pattern:
+  `pytest -v <mapped test paths or node ids>`). If you instead run the full
+  unit suite, state that explicitly and apply pass/fail to full-suite results.
 
 Constraints on the QA doc itself:
 
