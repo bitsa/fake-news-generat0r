@@ -1,5 +1,6 @@
 import logging
 import time
+from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -122,14 +123,16 @@ async def ingest_all(session: AsyncSession) -> IngestResult:
                 dupes_skipped,
             )
             if dupes_skipped > 0:
-                inserted_urls = {a.url for a in source_inserted}
+                inserted_counts = Counter(a.url for a in source_inserted)
                 for a in valid_articles:
-                    if a.url not in inserted_urls:
-                        log.warning(
-                            "scraper.entry.duplicate source=%s url=%s",
-                            source,
-                            a.url,
-                        )
+                    if inserted_counts[a.url] > 0:
+                        inserted_counts[a.url] -= 1
+                        continue
+                    log.debug(
+                        "scraper.entry.duplicate source=%s url=%s",
+                        source,
+                        a.url,
+                    )
 
         except Exception:
             await session.rollback()
