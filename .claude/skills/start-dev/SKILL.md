@@ -167,6 +167,26 @@ When done (or stopped), summarize:
 - Suggested next step (e.g. "review the diff and commit", or "answer
   open questions before continuing")
 
+Then ALWAYS append a final block titled `## Commit & PR scaffolding` with
+exactly these three subsections, in this order, regardless of whether the
+task succeeded or stopped under the stop-and-surface protocol:
+
+1. **Commit message** — a Conventional Commits subject line (`<type>(<scope>):
+   <description>`, ≤72 chars) followed by a short body paragraph (2–4 lines)
+   that explains the *why*, not the *what*. Render inside a fenced ```text
+   block so the user can copy it verbatim.
+2. **PR title** — same Conventional Commits subject as the commit, on its own
+   line. Inline code-fenced.
+3. **PR short description** — a fenced ```markdown block containing a
+   `## Summary` section (2–4 bullets) and a `## Test plan` section (checklist
+   of what the reviewer should verify, including lint/test commands and any
+   manual smoke checks).
+
+If the task stopped before implementation finished, still produce these
+three artifacts, but scope them to the partial work actually on the branch
+(or note "no commit yet — blocker unresolved" in the commit body).
+
 Do not write the QA doc, do not run QA tests, do not push the branch,
-do not open a PR — your output is the feature branch with the
-implementation and accompanying unit tests only.
+do not open a PR, do not run `git commit` yourself — your output is the
+feature branch with the implementation, accompanying unit tests, and the
+commit/PR scaffolding text for the user to use.

@@ -46,7 +46,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: ["sleep", "infinity"]
+    volumes:
+      - ./backend:/app
+      - /app/.venv
+    command: ["arq", "app.workers.transform.WorkerSettings"]
 
   frontend:
     build: ./frontend
