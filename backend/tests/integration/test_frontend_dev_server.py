@@ -42,19 +42,31 @@ def test_T_C5_vite_proxy_forwards_health() -> None:
 
 def test_T_B3_tanstack_query_provider_and_useQuery() -> None:
     src = REPO_ROOT / "frontend" / "src"
-    text_all = "\n".join(p.read_text(encoding="utf-8") for p in src.rglob("*.tsx") if p.is_file())
-    text_all += "\n" + "\n".join(p.read_text(encoding="utf-8") for p in src.rglob("*.ts") if p.is_file())
-    assert "QueryClientProvider" in text_all, "QueryClientProvider not present in frontend/src"
+    text_all = "\n".join(
+        p.read_text(encoding="utf-8") for p in src.rglob("*.tsx") if p.is_file()
+    )
+    text_all += "\n" + "\n".join(
+        p.read_text(encoding="utf-8") for p in src.rglob("*.ts") if p.is_file()
+    )
+    assert (
+        "QueryClientProvider" in text_all
+    ), "QueryClientProvider not present in frontend/src"
     assert "useQuery" in text_all, "useQuery not used in frontend/src"
 
 
 def test_T_B4_health_response_type_matches_contracts() -> None:
     types_dir = REPO_ROOT / "frontend" / "src" / "types"
-    matches = [p for p in types_dir.rglob("*.ts") if "HealthResponse" in p.read_text(encoding="utf-8")]
+    matches = [
+        p
+        for p in types_dir.rglob("*.ts")
+        if "HealthResponse" in p.read_text(encoding="utf-8")
+    ]
     assert matches, "HealthResponse interface not declared in frontend/src/types"
     text = "\n".join(p.read_text(encoding="utf-8") for p in matches)
     # exact field set
-    assert re.search(r'status:\s*"ok"\s*\|\s*"error"', text), "status union must be 'ok' | 'error'"
+    assert re.search(
+        r'status:\s*"ok"\s*\|\s*"error"', text
+    ), "status union must be 'ok' | 'error'"
     # No extra fields beyond status.
     iface_match = re.search(r"interface\s+HealthResponse\s*\{([^}]*)\}", text)
     assert iface_match
@@ -62,7 +74,9 @@ def test_T_B4_health_response_type_matches_contracts() -> None:
     declared = re.findall(r"^\s*(\w+)\s*:", body, re.M)
     assert set(declared) == {"status"}, f"unexpected fields: {declared}"
     # Consumer must annotate the fetch result as HealthResponse, not any.
-    consumer_text = (REPO_ROOT / "frontend" / "src" / "hooks" / "useHealth.ts").read_text(encoding="utf-8")
+    consumer_text = (
+        REPO_ROOT / "frontend" / "src" / "hooks" / "useHealth.ts"
+    ).read_text(encoding="utf-8")
     assert "HealthResponse" in consumer_text
     assert "any" not in re.findall(r"<\s*([A-Za-z_$][\w$]*)\s*[,>]", consumer_text)
 
@@ -72,7 +86,11 @@ def test_T_G4_vite_proxy_target_matches_compose_backend() -> None:
     targets = re.findall(r'target:\s*"([^"]+)"', vite)
     assert targets, "no proxy target in vite.config.ts"
     for t in targets:
-        assert t == "http://backend:8000", f"vite proxy target must be http://backend:8000 (got {t})"
+        assert (
+            t == "http://backend:8000"
+        ), f"vite proxy target must be http://backend:8000 (got {t})"
     compose_yaml = (REPO_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     assert re.search(r"^\s*backend:\s*$", compose_yaml, re.M)
-    assert re.search(r'"?\s*8000:8000\s*"?', compose_yaml), "backend must publish 8000:8000"
+    assert re.search(
+        r'"?\s*8000:8000\s*"?', compose_yaml
+    ), "backend must publish 8000:8000"

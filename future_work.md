@@ -37,7 +37,7 @@ This is the explicit list of things consciously deferred. Use directly in the Lo
 
 ## Product
 
-- **Authentication + multi-user chat history** — currently chat is shared per-article across all users (see ADR-11 in `decisions.md` for migration path)
+- **Authentication + multi-user chat history** — currently chat is shared per-article across all users (migration path: add a `users` table, add `user_id FK` to `chat_messages`, scope all chat queries by user)
 - **Bookmark / favorite articles**
 - **Search** — full-text on titles + descriptions, semantic via existing embeddings
 - **Edit prompt per article** — let user choose tone (sarcastic, absurdist, dry) and re-transform on demand

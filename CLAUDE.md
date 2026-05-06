@@ -30,3 +30,9 @@ Core Principles
 Simplicity First: Make every change as simple as possible. Impact minimal code.
 No Laziness: Find root causes. No temporary fixes. Senior developer standards.
 Minimal Impact: Changes should only touch what's necessary. Avoid introducing bugs.
+
+## Architecture decisions
+
+Architectural decisions are documented in `context.md` under the `## Decisions` section — written
+as prose, not numbered ADR documents. There are no ADR-N files in this project. Do not reference
+"ADR" or "ADR-N" notation anywhere. When citing a decision, reference `context.md` directly.

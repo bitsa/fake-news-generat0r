@@ -1,5 +1,9 @@
+import asyncio
 from contextlib import asynccontextmanager
+from pathlib import Path
 
+from alembic.command import upgrade as alembic_upgrade
+from alembic.config import Config
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
@@ -11,8 +15,14 @@ from app.routers import health
 configure_logging()
 
 
+async def _run_migrations() -> None:
+    cfg = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+    await asyncio.to_thread(alembic_upgrade, cfg, "head")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await _run_migrations()
     yield
     await close_redis()
 

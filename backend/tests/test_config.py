@@ -49,7 +49,9 @@ def test_no_os_environ_outside_config_module():
             )
         ):
             offenders.append(str(path.relative_to(app_dir.parent)))
-    assert offenders == [], f"os.environ/getenv found outside app/config.py: {offenders}"
+    assert (
+        offenders == []
+    ), f"os.environ/getenv found outside app/config.py: {offenders}"
 
 
 def test_clean_module_state_after():

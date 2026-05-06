@@ -41,8 +41,12 @@ def compose(
             timeout=timeout,
         )
     except subprocess.TimeoutExpired as exc:
-        stderr = exc.stderr.decode() if isinstance(exc.stderr, bytes) else (exc.stderr or "")
-        stdout = exc.stdout.decode() if isinstance(exc.stdout, bytes) else (exc.stdout or "")
+        stderr = (
+            exc.stderr.decode() if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+        )
+        stdout = (
+            exc.stdout.decode() if isinstance(exc.stdout, bytes) else (exc.stdout or "")
+        )
         raise AssertionError(
             f"`docker compose {' '.join(args)}` timed out after {timeout}s.\n"
             f"stdout:\n{stdout}\nstderr:\n{stderr}"
@@ -73,10 +77,15 @@ def wait_for_health_endpoint_ok(timeout: float = 30.0) -> dict:
         if remaining <= 0:
             break
         try:
-            r = httpx.get(f"{BACKEND_URL}/health", timeout=min(HEALTH_RESPONSE_BUDGET_S, remaining))
+            r = httpx.get(
+                f"{BACKEND_URL}/health",
+                timeout=min(HEALTH_RESPONSE_BUDGET_S, remaining),
+            )
             if r.status_code == 200 and r.json().get("status") == "ok":
                 return r.json()
         except Exception as e:  # noqa: BLE001
             last_exc = e
         time.sleep(min(1.0, max(0.0, deadline - time.monotonic())))
-    raise AssertionError(f"backend /health did not return 200/ok within {timeout}s: {last_exc!r}")
+    raise AssertionError(
+        f"backend /health did not return 200/ok within {timeout}s: {last_exc!r}"
+    )
