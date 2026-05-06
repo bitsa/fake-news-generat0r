@@ -113,12 +113,23 @@ async def ingest_all(session: AsyncSession) -> IngestResult:
 
             await session.commit()
             all_inserted.extend(source_inserted)
+            dupes_skipped = len(valid_articles) - len(source_inserted)
             log.info(
-                "scraper.source.ok source=%s fetched=%d inserted=%d",
+                "scraper.source.ok source=%s fetched=%d inserted=%d dupes_skipped=%d",
                 source,
                 len(raw_entries),
                 len(source_inserted),
+                dupes_skipped,
             )
+            if dupes_skipped > 0:
+                inserted_urls = {a.url for a in source_inserted}
+                for a in valid_articles:
+                    if a.url not in inserted_urls:
+                        log.warning(
+                            "scraper.entry.duplicate source=%s url=%s",
+                            source,
+                            a.url,
+                        )
 
         except Exception:
             await session.rollback()
