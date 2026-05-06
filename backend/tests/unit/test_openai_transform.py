@@ -1,4 +1,5 @@
 import json
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -241,6 +242,56 @@ async def test_generate_satirical_raises_on_refusal_response(monkeypatch):
     with patch("openai.AsyncOpenAI", cls):
         with pytest.raises(ValueError):
             await generate_satirical("a", "b")
+
+
+# ---------------------------------------------------------------------------
+# Service-side failure logging (AC14 safety, scoped to app.services.openai_transform)
+# ---------------------------------------------------------------------------
+
+
+async def test_generate_satirical_failure_emits_one_error_log_with_model_and_exc_type(
+    monkeypatch, caplog
+):
+    monkeypatch.setattr(settings, "openai_mock_mode", False)
+    monkeypatch.setattr(settings, "openai_model_transform", "test-model-x")
+    cls, _, _ = _make_async_openai(parse_side_effect=TimeoutError("timed out"))
+
+    with patch("openai.AsyncOpenAI", cls):
+        with caplog.at_level(logging.ERROR, logger="app.services.openai_transform"):
+            with pytest.raises(TimeoutError):
+                await generate_satirical("a", "b")
+
+    error_records = [
+        r for r in caplog.records if r.name == "app.services.openai_transform"
+    ]
+    assert len(error_records) == 1
+    msg = error_records[0].getMessage()
+    assert "test-model-x" in msg
+    assert "TimeoutError" in msg
+
+
+async def test_generate_satirical_failure_log_does_not_contain_prompt_response_or_api_key(  # noqa: E501
+    monkeypatch, caplog
+):
+    monkeypatch.setattr(settings, "openai_mock_mode", False)
+    monkeypatch.setattr(settings, "openai_api_key", "sk-secret-do-not-leak")
+    secret_title = "SECRET-ORIGINAL-TITLE-XYZ"
+    secret_desc = "SECRET-ORIGINAL-DESCRIPTION-XYZ"
+    cls, _, _ = _make_async_openai(parse_side_effect=RuntimeError("boom"))
+
+    with patch("openai.AsyncOpenAI", cls):
+        with caplog.at_level(logging.DEBUG, logger="app.services.openai_transform"):
+            with pytest.raises(RuntimeError):
+                await generate_satirical(secret_title, secret_desc)
+
+    for record in caplog.records:
+        if record.name != "app.services.openai_transform":
+            continue
+        msg = record.getMessage()
+        assert secret_title not in msg
+        assert secret_desc not in msg
+        assert "sk-secret-do-not-leak" not in msg
+        assert "rewrite news articles" not in msg  # system prompt fragment
 
 
 # ---------------------------------------------------------------------------
