@@ -144,3 +144,29 @@ async def test_post_scrape_second_call_returns_202_with_zero_inserted(scrape_cli
 
     assert r.status_code == 202
     assert r.json() == {"inserted": 0, "fetched": 8}
+
+
+async def test_post_scrape_awaits_create_and_enqueue_before_returning_response(
+    scrape_client,
+):
+    article = Article(source=Source.NYT, title="T", url="http://x.com", description="D")
+    call_order: list[str] = []
+
+    async def mock_ingest(session) -> IngestResult:
+        call_order.append("ingest_all")
+        return IngestResult(inserted=[article], fetched=1)
+
+    async def mock_enqueue(session, pool, articles) -> None:
+        call_order.append("create_and_enqueue")
+
+    with (
+        patch("app.routers.scrape.scraper.ingest_all", side_effect=mock_ingest),
+        patch(
+            "app.routers.scrape.transformer.create_and_enqueue",
+            side_effect=mock_enqueue,
+        ),
+    ):
+        r = await scrape_client.post("/api/scrape")
+
+    assert r.status_code == 202
+    assert call_order == ["ingest_all", "create_and_enqueue"]

@@ -28,9 +28,13 @@ async def _run_migrations() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    log.info("startup.migrations.begin")
     await _run_migrations()
+    configure_logging()
+    log.info("startup.migrations.complete")
     app.state.arq_pool = await arq_client.create_arq_pool()
     try:
+        log.info("startup.scrape.begin")
         async with AsyncSessionLocal() as session:
             await transformer.recover_stale_pending(session, app.state.arq_pool)
             result = await scraper.ingest_all(session)

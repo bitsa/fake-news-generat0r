@@ -48,62 +48,36 @@ refetchInterval: (data) =>
   data?.some(a => a.transform_status === 'pending' || a.transform_status === 'processing')
     ? 3000
     : false
+
+    This above code should have a logic to only keep polling for x long or x times. 
+    
 Dependency: This requires transform_status as a column on article_fakes (values: pending, processing, completed, failed). Without it the frontend cannot distinguish "still transforming" from "permanently failed" and has no clean stop condition.
 
 What this avoids: No WebSocket, no SSE on the scrape endpoint, no new scrape_jobs table, no new status endpoints. React Query's refetchInterval handles the entire polling lifecycle natively.
 
-1) next steps : AI transformation + queue
-Will need to break this up into 2 tasks openAI integration and queue set up and flow.
+1)
 
-Task draft: article-transformer (next task after rss-scraper is done)
+Tech DebT !!! Important
+ Prompt for fresh agent
+The RSS scraper ingestion path (PR #2) is too quiet. We just spent an hour debugging a silent NotNullViolationError that never appeared in docker compose logs backend even though log.warning(..., exc_info=True) was in place. Two things to fix:
 
-Context:
-  rss-scraper is complete. scraper.ingest_all(session) runs on startup,
-  upserts articles, and returns list[Article] for newly inserted rows.
-  No article_fakes rows exist yet. The ARQ worker infrastructure exists
-  (arq is installed, redis is running via Docker Compose) but is unused.
+1. Fix log buffering. Add ENV PYTHONUNBUFFERED=1 to backend/Dockerfile. Without this, Python buffers stdout in non-TTY environments and any logs in flight when the container restarts are lost. This is almost certainly why we couldn't see the scraper errors.
 
-What this task adds:
+2. Add lightweight INFO-level logs to make the ingestion flow visible. Don't over-instrument — just enough that someone tailing logs can follow the shape of a scrape. Specifically:
 
-  1. Immediately after scraper.ingest_all() returns, for each new Article:
-       INSERT INTO article_fakes (article_id, transform_status='pending')
-       Enqueue an ARQ job: transform_article(article_id)
-     Both writes happen before the lifespan continues. Pending rows are
-     the durability record — if the queue is wiped, the row survives.
+In app/main.py lifespan: log startup.migrations.begin and startup.migrations.complete around _run_migrations(). Log startup.scrape.begin before the scrape (the existing startup.scrape.complete stays).
+In app/services/scraper.py:
+fetch_feed: log scraper.fetch.begin source=<X> before the GET and scraper.fetch.ok source=<X> entries=<N> elapsed_ms=<M> after parse.
+ingest_all: at the top, log scraper.ingest.begin sources=<N>. After each source's commit, log scraper.source.ok source=<X> fetched=<N> inserted=<M>. At the end log scraper.ingest.complete fetched=<total> inserted=<total> failed=<N>.
+Keep the existing scraper.entry.dropped and scraper.source.failed warnings — those are correct.
+Constraints:
 
-  2. An ARQ worker job (backend/app/worker.py):
-       async def transform_article(ctx, article_id: int)
-       - Fetch the Article from DB
-       - Call OpenAI (mock in tests) to generate fake_title + fake_description
-         using settings.openai_model_transform / openai_temperature_transform
-       - On success: UPDATE article_fakes SET transform_status='completed',
-         title=..., description=..., model=..., temperature=...
-       - On failure: DELETE FROM article_fakes WHERE article_id=...
-         Log the error. No retry (max_tries=1).
+INFO level for happy-path events, WARNING for drops/failures (already in place).
+Use the existing log = logging.getLogger(__name__) pattern. Don't introduce a logging library or change logging_config.py beyond what's needed.
+Keep keys/values machine-greppable: key=value style, no f-string sentences.
+No new dependencies. No metric/tracing libraries.
+Verify by:
 
-  3. A new coordinator: backend/app/services/ingestor.py
-       async def run(session: AsyncSession, arq_pool: ArqRedis) -> int
-       - Calls scraper.ingest_all(session) → list[Article]
-       - Inserts pending article_fakes rows for each
-       - Enqueues ARQ jobs (best-effort — log warning if enqueue fails,
-         do not abort)
-       - Returns count of jobs enqueued
-     main.py lifespan switches from scraper.ingest_all() to ingestor.run().
-     scraper.py is untouched.
-
-  4. Recovery: on startup, re-enqueue any article_fakes rows where
-     transform_status='pending' AND created_at < NOW() - interval '5 min'
-     (handles crash-during-flight from a prior run).
-
-Files to create:
-  backend/app/services/ingestor.py
-  backend/app/worker.py
-  backend/tests/unit/test_ingestor.py
-  backend/tests/unit/test_worker.py
-
-Files to modify:
-  backend/app/main.py — switch lifespan call; wire ARQ pool
-
-Out of scope:
-  API endpoints, frontend, scheduled scraping, retry storms, DLQ.
-  scraper.py is not modified.
+docker compose down -v && docker compose up -d
+docker compose logs backend -f — you should see migrations begin/end, scrape begin, three scraper.fetch.ok lines (NYT/NPR/Guardian), three scraper.source.ok lines, then scraper.ingest.complete and startup.scrape.complete.
+To prove buffering is fixed, temporarily break a feed URL in app/sources.py, restart, and confirm the scraper.source.failed warning with traceback appears in docker compose logs backend — not just on manual repro.
