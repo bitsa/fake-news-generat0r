@@ -55,29 +55,16 @@ Dependency: This requires transform_status as a column on article_fakes (values:
 
 What this avoids: No WebSocket, no SSE on the scrape endpoint, no new scrape_jobs table, no new status endpoints. React Query's refetchInterval handles the entire polling lifecycle natively.
 
-1)
 
-Tech DebT !!! Important
- Prompt for fresh agent
-The RSS scraper ingestion path (PR #2) is too quiet. We just spent an hour debugging a silent NotNullViolationError that never appeared in docker compose logs backend even though log.warning(..., exc_info=True) was in place. Two things to fix:
+3. 
+Task: Add a periodic recovery sweep for stuck article_fakes rows. Do this when creating a cron job for scraping
 
-1. Fix log buffering. Add ENV PYTHONUNBUFFERED=1 to backend/Dockerfile. Without this, Python buffers stdout in non-TTY environments and any logs in flight when the container restarts are lost. This is almost certainly why we couldn't see the scraper errors.
+Context: Today, recover_stale_pending (in backend/app/services/transformer.py) only runs once, in the FastAPI lifespan startup hook. If the API process stays up for days/weeks while individual ARQ workers crash, orphan rows with transform_status='pending' and created_at older than transform_recovery_threshold_minutes (default 5) will accumulate in the DB and never get re-enqueued until the next restart.
 
-2. Add lightweight INFO-level logs to make the ingestion flow visible. Don't over-instrument — just enough that someone tailing logs can follow the shape of a scrape. Specifically:
+What to do: Register recover_stale_pending as an ARQ cron job in WorkerSettings.cron_jobs (in backend/app/workers/transform.py) so it runs every N minutes on the worker side — turning recovery from a startup-only safety net into a continuous background sweep. Suggested cadence: every 2–5 minutes. The worker function will need to build its own AsyncSession and reuse the existing ArqRedis from ctx, the same way transform_article does. Keep the lifespan call too — belt and suspenders is fine.
 
-In app/main.py lifespan: log startup.migrations.begin and startup.migrations.complete around _run_migrations(). Log startup.scrape.begin before the scrape (the existing startup.scrape.complete stays).
-In app/services/scraper.py:
-fetch_feed: log scraper.fetch.begin source=<X> before the GET and scraper.fetch.ok source=<X> entries=<N> elapsed_ms=<M> after parse.
-ingest_all: at the top, log scraper.ingest.begin sources=<N>. After each source's commit, log scraper.source.ok source=<X> fetched=<N> inserted=<M>. At the end log scraper.ingest.complete fetched=<total> inserted=<total> failed=<N>.
-Keep the existing scraper.entry.dropped and scraper.source.failed warnings — those are correct.
 Constraints:
 
-INFO level for happy-path events, WARNING for drops/failures (already in place).
-Use the existing log = logging.getLogger(__name__) pattern. Don't introduce a logging library or change logging_config.py beyond what's needed.
-Keep keys/values machine-greppable: key=value style, no f-string sentences.
-No new dependencies. No metric/tracing libraries.
-Verify by:
-
-docker compose down -v && docker compose up -d
-docker compose logs backend -f — you should see migrations begin/end, scrape begin, three scraper.fetch.ok lines (NYT/NPR/Guardian), three scraper.source.ok lines, then scraper.ingest.complete and startup.scrape.complete.
-To prove buffering is fixed, temporarily break a feed URL in app/sources.py, restart, and confirm the scraper.source.failed warning with traceback appears in docker compose logs backend — not just on manual repro.
+Do not add failed/processing/transform_error to the schema — two-state lifecycle (pending → completed or row deleted) is intentional. See feedback_schema_no_failure_states.md.
+No new infra (no Celery beat, no external scheduler) — must use ARQ's built-in cron_jobs.
+Add a unit test that verifies the cron entry is registered and points at recover_stale_pending.

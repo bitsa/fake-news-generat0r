@@ -26,7 +26,11 @@ async def create_and_enqueue(
         try:
             await arq_pool.enqueue_job("transform_article", article.id)
         except Exception:
-            log.warning("transformer.enqueue.failed article_id=%d", article.id)
+            log.warning(
+                "transformer.enqueue.failed article_id=%d",
+                article.id,
+                exc_info=True,
+            )
 
 
 async def recover_stale_pending(
@@ -50,6 +54,10 @@ async def recover_stale_pending(
             await arq_pool.enqueue_job("transform_article", article_id)
             count += 1
         except Exception:
-            log.warning("transformer.recover.enqueue.failed article_id=%d", article_id)
+            log.warning(
+                "transformer.recover.enqueue.failed article_id=%d",
+                article_id,
+                exc_info=True,
+            )
 
     return count

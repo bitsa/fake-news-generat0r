@@ -110,9 +110,9 @@ async def ingest_all(session: AsyncSession) -> IngestResult:
                 )
                 result = await session.execute(stmt)
                 source_inserted = list(result.scalars().all())
-                all_inserted.extend(source_inserted)
 
             await session.commit()
+            all_inserted.extend(source_inserted)
             log.info(
                 "scraper.source.ok source=%s fetched=%d inserted=%d",
                 source,

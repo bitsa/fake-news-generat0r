@@ -101,17 +101,19 @@ async def test_post_scrape_happy_path_returns_202_with_inserted_and_fetched(
     article = Article(source=Source.NYT, title="T", url="http://x.com", description="D")
     result = IngestResult(inserted=[article, article], fetched=5)
 
+    mock_enqueue = AsyncMock()
     with (
         patch(
             "app.routers.scrape.scraper.ingest_all",
             new=AsyncMock(return_value=result),
         ),
-        patch("app.routers.scrape.transformer.create_and_enqueue", new=AsyncMock()),
+        patch("app.routers.scrape.transformer.create_and_enqueue", new=mock_enqueue),
     ):
         r = await scrape_client.post("/api/scrape")
 
     assert r.status_code == 202
     assert r.json() == {"inserted": 2, "fetched": 5}
+    mock_enqueue.assert_awaited_once()
 
 
 async def test_post_scrape_all_sources_failed_returns_503(scrape_client):
