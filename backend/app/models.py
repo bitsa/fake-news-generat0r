@@ -22,7 +22,7 @@ class Article(Base):
         nullable=False,
     )
     title: Mapped[str] = mapped_column(sa.Text, nullable=False)
-    description: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    description: Mapped[str] = mapped_column(sa.Text, nullable=False)
     url: Mapped[str] = mapped_column(sa.Text, nullable=False, unique=True)
     published_at: Mapped[datetime | None] = mapped_column(
         sa.DateTime(timezone=True), nullable=True

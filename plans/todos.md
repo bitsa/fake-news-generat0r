@@ -107,5 +107,3 @@ Files to modify:
 Out of scope:
   API endpoints, frontend, scheduled scraping, retry storms, DLQ.
   scraper.py is not modified.
-
-1) expose the endpoint for article quering.
