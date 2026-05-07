@@ -1,3 +1,5 @@
+1) Next thing in the morning : Messaging with the AI !!!
+
 1) README is not yet a root doc.
 
 Tech Debt :
@@ -54,3 +56,6 @@ Add a unit test that verifies the cron entry is registered and points at recover
 1. Good to have : when giving article to AI : ask them to give back a 1 word category name out of possible outputs : "Climate" "tech" "markets" "politics" etc etc.
 
 2. Good to have : Judge model for generated fake articles
+
+
+
