@@ -156,7 +156,7 @@ async def ingest_all(session: AsyncSession) -> IngestResult:
                     result.skipped_near_duplicates += 1
                     log.info(
                         "scraper.dedup.skip reason=%s candidate_url=%s "
-                        "matched_article_id=%d",
+                        "matched_article_id=%s",
                         decision.reason,
                         cand.url,
                         decision.matched_article_id,

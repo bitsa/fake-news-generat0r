@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     dedup_jaccard_floor: float = Field(default=0.40, ge=0.0, le=1.0)
     dedup_cosine_threshold: float = Field(default=0.88, gt=0.0, le=1.0)
     openai_model_embedding: str = "text-embedding-3-small"
+
+    @model_validator(mode="after")
+    def _validate_dedup_threshold_order(self) -> "Settings":
+        if self.dedup_jaccard_floor >= self.dedup_jaccard_high:
+            raise ValueError("dedup_jaccard_floor must be < dedup_jaccard_high")
+        return self
 
 
 settings = Settings()

@@ -39,7 +39,12 @@ async def embed_text(text: str) -> list[float]:
             input=text,
         )
         log.info("embedding.ok model=%s", settings.openai_model_embedding)
-        return list(response.data[0].embedding)
+        vector = list(response.data[0].embedding)
+        if len(vector) != EMBEDDING_DIM:
+            raise ValueError(
+                f"Unexpected embedding dimension: got={len(vector)} expected={EMBEDDING_DIM}"
+            )
+        return vector
     except Exception as exc:
         log.error(
             "embedding.failed model=%s exc_type=%s",

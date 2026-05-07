@@ -268,6 +268,10 @@ async def test_transform_article_failure_targets_articles_table_not_fakes():
     assert mock_session.execute.await_count == 1
     stmt = mock_session.execute.await_args.args[0]
     assert stmt.table.name == Article.__tablename__
+    compiled = stmt.compile(compile_kwargs={"literal_binds": True})
+    sql = str(compiled).lower()
+    assert " where " in sql
+    assert f"{Article.__tablename__}.id = 8" in sql
 
 
 async def test_transform_article_failure_emits_one_error_log_with_article_id(caplog):

@@ -43,6 +43,7 @@ async def transform_article(ctx: dict, article_id: int) -> None:
             )
         except Exception as exc:
             await session.rollback()
+            # Delete parent Article (cascades to dependents) so a future scrape can re-enqueue this item; do not "simplify" to a status flag.
             await session.execute(sa.delete(Article).where(Article.id == article_id))
             await session.commit()
             log.error(
