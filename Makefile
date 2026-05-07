@@ -9,11 +9,11 @@ ARGS ?=
 help:  ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 
-up:  ## docker compose up (foreground, all services)
-	docker compose up
+up:  ## docker compose up --build (foreground, all services)
+	docker compose up --build
 
-up-d:  ## docker compose up -d (detached)
-	docker compose up -d
+up-d:  ## docker compose up -d --build (detached)
+	docker compose up -d --build
 
 down:  ## docker compose down (keep volumes)
 	docker compose down

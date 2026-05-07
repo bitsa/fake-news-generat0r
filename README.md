@@ -43,7 +43,7 @@ git clone https://github.com/bitsa/fake-news-generat0r.git
 cd fake-news-generat0r
 cp .env.example .env
 # Edit .env and replace OPENAI_API_KEY=sk-REPLACE_ME with a real key
-docker compose up
+docker compose up --build
 ```
 
 Once up:
