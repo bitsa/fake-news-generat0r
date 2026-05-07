@@ -114,7 +114,7 @@ async def _stream_real_llm(
         if delta is None:
             continue
         text = getattr(delta, "content", None)
-        if text:
+        if text and text.strip():
             yield text
 
 
