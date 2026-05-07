@@ -117,10 +117,16 @@ Functional — real-call path (`CHAT_LLM_MOCK=false`):
   streaming Chat Completions / Responses call exactly once per request
   (the same SDK surface that `openai-transform` already uses, configured
   with `stream=True`).
-- AC2. The OpenAI call is made with `model` = `settings.chat_model`,
-  `temperature` = `settings.chat_temperature`, and a per-request token
-  cap of `settings.chat_max_output_tokens`, and uses a per-request
-  timeout of `settings.openai_request_timeout_seconds`.
+- AC2. The OpenAI call is made with `model` =
+  `settings.openai_model_chat`, `temperature` =
+  `settings.openai_temperature_chat`, and a per-request token cap of
+  `settings.chat_max_output_tokens`, and uses a per-request timeout of
+  `settings.openai_request_timeout_seconds`. The SDK surface is the
+  standard streaming Chat Completions call —
+  `client.chat.completions.create(model=..., messages=...,
+  temperature=..., max_tokens=..., stream=True)` — not the
+  structured-output `client.beta.chat.completions.parse` entry point
+  used by `openai-transform`.
 - AC3. Each non-empty `delta.content` chunk produced by the streaming
   iterator is emitted to the client as one SSE event with framing
   `data: {"token": "..."}\n\n` (UTF-8). Empty / whitespace-only deltas
@@ -188,9 +194,9 @@ Functional — failure path:
   an unexpected exception in the surrounding service code — the
   endpoint:
   (a) inserts and commits exactly one assistant `chat_messages` row
-      with `is_error=true` and a short, fixed, non-empty sentinel
-      string as `content` (the sentinel is the same across failure
-      variants and is not the raw provider message),
+      with `is_error=true` and `content` set to the **error sentinel
+      string only** (never the partial buffered tokens, never the
+      raw provider message),
   (b) emits exactly one `data: {"error": "<sentinel>"}\n\n` SSE event
       after the failure, where the `error` field is a short
       sanitised string (no provider error body, no API key, no full
@@ -204,14 +210,11 @@ Functional — failure path:
       `article_id` and the failing exception type name (no prompt
       body, no response body, no API key).
 - AC14. If the failure occurs after some token events have already
-  been emitted, those tokens are still represented in the persisted
-  assistant row's content **only if** the `is_error=true` row's
-  `content` is required to capture them; otherwise the sentinel
-  alone is acceptable. The behaviour chosen here is pinned in the
-  dev plan but must be self-consistent: the persisted row content
-  and the stream's emitted token events must agree about what the
-  client saw versus what it didn't.
-  — Open question OQ-1 (see below).
+  been emitted, the persisted assistant row's `content` is the error
+  sentinel string (not the partial buffered tokens). The token
+  events the client already saw are not reconstructable from the
+  history endpoint; the row's `is_error=true` flag is the signal
+  that the assistant turn ended in failure.
 
 Configuration / surface:
 
@@ -224,17 +227,17 @@ Configuration / surface:
 - AC17. `chat_max_output_tokens` is exposed as a Pydantic Settings
   positive-integer field with a sensible default (suggested `512`,
   pinned in the dev plan).
-- AC18. The chat model and chat temperature settings used by this
-  task come from a single, consistent pair of Settings fields
-  resolved during dev planning (see Open Questions OQ-2). Whichever
-  pair is used, the values reach the OpenAI SDK call exactly as
-  configured.
-- AC19. `.env.example` documents `CHAT_LLM_MOCK`, `CHAT_HISTORY_WINDOW`,
-  `CHAT_MAX_OUTPUT_TOKENS`, and any newly-introduced chat model /
-  temperature fields with one-line descriptions matching the existing
-  style. Pre-existing OpenAI keys (`OPENAI_API_KEY`,
-  `OPENAI_REQUEST_TIMEOUT_SECONDS`, `OPENAI_MOCK_MODE`) are not
-  modified by this task.
+- AC18. The chat model and chat temperature reach the OpenAI SDK
+  call from the **existing** Settings fields `openai_model_chat`
+  and `openai_temperature_chat` (already declared in
+  `backend/app/config.py`). No parallel `chat_model` /
+  `chat_temperature` fields are introduced.
+- AC19. `.env.example` documents `CHAT_LLM_MOCK`,
+  `CHAT_HISTORY_WINDOW`, and `CHAT_MAX_OUTPUT_TOKENS` with one-line
+  descriptions matching the existing style. Pre-existing keys
+  (`OPENAI_API_KEY`, `OPENAI_REQUEST_TIMEOUT_SECONDS`,
+  `OPENAI_MOCK_MODE`, `OPENAI_MODEL_CHAT`,
+  `OPENAI_TEMPERATURE_CHAT`) are not modified by this task.
 - AC20. The public router contract is unchanged: the request URL,
   request body shape, response media type, status codes (200 / 404 /
   422), and SSE event format defined by Task 1 are byte-for-byte
@@ -308,77 +311,50 @@ Quality gates:
 
 ## Open questions / assumptions
 
-1. **OQ-1: Persisted assistant content on partial-stream failure.**
-   When the LLM stream produces N tokens successfully and then fails,
-   should the assistant row's `content` be (a) the partial buffered
-   text that was already emitted to the client, (b) the short error
-   sentinel string only, or (c) the partial buffered text *with* an
-   appended error sentinel? The plan and Task 1's locked semantics do
-   not pin this. Recommendation: **(b) — error sentinel only** for
-   simplicity and to match the success-path invariant "the assistant
-   row's `content` is what the user saw as a finished reply". The dev
-   plan must pin one option; QA will verify whatever the dev plan
-   pins, and AC14 enforces self-consistency between row content and
-   emitted events. Needs sign-off before dev starts.
+Resolved (pinned by user during spec authoring):
 
-2. **OQ-2: Settings field naming for chat model / temperature.**
-   `backend/app/config.py` already exposes `openai_model_chat` and
-   `openai_temperature_chat` (added during scaffolding for an earlier
-   slice). The plan calls for new fields named `chat_model` and
-   `chat_temperature`. Adding both pairs would be redundant /
-   confusing. Recommendation: **reuse the existing
-   `openai_model_chat` / `openai_temperature_chat` fields** and do
-   not introduce parallel `chat_model` / `chat_temperature` fields.
-   This keeps OpenAI-specific config under the `openai_` prefix
-   alongside `openai_model_transform` / `openai_temperature_transform`
-   and avoids drift. AC18 is intentionally written to allow either
-   resolution — pin one in the dev plan. Needs sign-off before dev
-   starts.
+- **OQ-1: Persisted assistant content on partial-stream failure.**
+  Resolved: **error sentinel only**. On any mid-stream failure the
+  assistant row's `content` is the sentinel string; partial buffered
+  tokens are not persisted. Drives AC13(a) and AC14.
 
-3. **OQ-3: Task ordering dependency on `chat-stream-skeleton`.**
-   Task 1 (`chat-stream-skeleton`) is `spec'd` at the time this spec
-   is written but not yet implemented (see
-   [chat-stream-skeleton-spec.md](../chat-stream-skeleton/chat-stream-skeleton-spec.md)).
-   This task strictly depends on Task 1's deliverables (POST router,
-   SSE plumbing, `chat_mock` generator, persistence sequencing,
-   `is_error` write path). Dev for `chat-llm` must not start until
-   Task 1 is at least `in_qa`. Flagging here so the orchestrator
-   does not start `chat-llm` against a missing scaffold; QA-side
-   unit tests that assume the Task 1 surface (e.g. importing
-   `chat_mock`) will fail otherwise.
+- **OQ-2: Settings field naming for chat model / temperature.**
+  Resolved: **reuse the existing `openai_model_chat` and
+  `openai_temperature_chat` fields** in `backend/app/config.py`. No
+  parallel `chat_model` / `chat_temperature` fields are introduced.
+  Drives AC2 and AC18.
 
-4. **OQ-4: SDK surface — Chat Completions vs. Responses API.**
-   `openai_transform.py` uses
-   `client.beta.chat.completions.parse(...)` (Chat Completions with
-   structured outputs) — but that is the structured-output entry
-   point, which does not stream. The plan says "match what
-   `openai-transform` already uses for consistency" yet also requires
-   `stream=True`. Recommendation: use the standard streaming Chat
-   Completions surface
-   (`client.chat.completions.create(model=..., messages=...,
-   stream=True, ...)`) since structured outputs aren't applicable to
-   free-form chat replies, and treat "consistency with
-   `openai-transform`" as "same SDK package and client construction
-   pattern" rather than "same exact method". The dev plan must pin
-   the exact SDK call. QA does not need to verify the SDK surface
-   beyond "the call was made once with `stream=True` and the
-   configured model / temperature / max-tokens / timeout".
+- **OQ-3: Task ordering dependency on `chat-stream-skeleton`.**
+  Resolved: dev for `chat-llm` waits until `chat-stream-skeleton`
+  reaches at least `in_qa`. Status as of spec authoring:
+  `chat-stream-skeleton` is `in_dev` (see
+  [chat-stream-skeleton-spec.md](../chat-stream-skeleton/chat-stream-skeleton-spec.md)
+  and its dev doc). The orchestrator must not start `chat-llm` dev
+  against a missing scaffold.
 
-5. **OQ-5: `chat_max_output_tokens` default.** Plan does not specify
-   a number. Recommendation: `512`. Justification: short, factual
-   replies (summaries, key entities, change diffs) per the
-   assignment's structured questions; keeps the cost ceiling
-   predictable. Pin in dev plan.
+- **OQ-4: SDK surface.** Resolved: standard streaming Chat
+  Completions —
+  `client.chat.completions.create(model=..., messages=...,
+  temperature=..., max_tokens=..., stream=True)`. Not the
+  structured-output `client.beta.chat.completions.parse` surface
+  used by `openai-transform`. Drives AC2.
 
-6. **OQ-6: Error sentinel string content.** Recommendation: a single
-   constant such as `"stream failed"` for both the SSE `error` field
-   and the `is_error=true` assistant row's `content`. AC22 caps
-   length and forbids leaking provider details; the exact string is
-   a dev-plan choice within those constraints.
+Open (recommendations stand; pin in dev plan):
 
-7. **OQ-7: Empty-history behaviour.** When the article has zero prior
-   `chat_messages` rows (first turn), the prompt's history slice is
-   empty and the message list contains only the system message and
-   the new `user` message. Confirmed assumption — surfaced because
-   QA will write a "first-turn" test against this case, and pinning
-   it here prevents drift.
+- **OQ-5: `chat_max_output_tokens` default.** Recommendation:
+  `512`. Justification: short, factual replies (summaries, key
+  entities, change diffs) per the assignment's structured
+  questions; keeps the cost ceiling predictable.
+
+- **OQ-6: Error sentinel string content.** Recommendation: a single
+  constant such as `"stream failed"` for both the SSE `error` field
+  and the `is_error=true` assistant row's `content`. AC22 caps
+  length and forbids leaking provider details; the exact string is
+  a dev-plan choice within those constraints.
+
+- **OQ-7: Empty-history behaviour.** When the article has zero prior
+  `chat_messages` rows (first turn), the prompt's history slice is
+  empty and the message list contains only the system message and
+  the new `user` message. Confirmed assumption — surfaced because
+  QA will write a "first-turn" test against this case, and pinning
+  it here prevents drift.

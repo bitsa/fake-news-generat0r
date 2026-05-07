@@ -81,10 +81,14 @@ Endpoint surface:
   into the FastAPI app. The route is mounted under the `/api`
   prefix, alongside the existing `GET /api/articles/{article_id}/chat`.
 - AC2. The request body is JSON `{"message": "<string>"}`. Pydantic
-  validation rejects: missing `message`, non-string `message`, empty
-  string (after no transformation — see assumption below), and
-  strings longer than `settings.chat_message_max_chars`. Rejection
-  yields HTTP 422.
+  validation rejects, with HTTP 422: missing `message`, non-string
+  `message`, empty string, whitespace-only string (i.e. a string
+  whose `.strip()` is empty), and strings longer than
+  `settings.chat_message_max_chars` (where length is measured in
+  Python `len(str)` characters / code points, not bytes or tokens).
+  No transformation is applied to the stored `content` — the
+  original `message` is persisted verbatim, leading/trailing
+  whitespace included, provided it passes validation.
 - AC3. When the `article_id` path param does not match an existing
   `articles.id`, the endpoint returns HTTP 404 with body
   `{"detail": "Article <id> not found"}` via the existing `AppError`
@@ -134,9 +138,12 @@ Persistence — error path:
   the stream closes, with `role='assistant'`, `is_error=true`, and
   `content` equal to a short, non-empty error sentinel string. The
   user row from AC8 is not modified.
-- AC12. On the error path, the assistant row's `content` does not
-  contain the raw exception class name or stack trace and does not
-  contain any LLM payload.
+- AC12. The error sentinel string is byte-for-byte identical
+  between the SSE error event payload (the value of the `error`
+  key in the `data: {"error": "..."}` event from AC7) and the
+  persisted assistant row's `content` (AC11). The string does not
+  contain the raw exception class name, stack trace, or any LLM
+  payload.
 - AC13. After an error-path request,
   `GET /api/articles/{article_id}/chat` returns the user row
   (`is_error=false`) followed by the assistant row
@@ -160,25 +167,26 @@ Mock generator behaviour:
 Test hook for the error path:
 
 - AC17. A deterministic hook exists that forces the mock generator
-  to raise mid-stream. The hook is driven by configuration (a
-  Pydantic Settings field — naming/shape is an implementation
-  detail, but the field must be settable per-test without code
-  changes). When triggered, it produces the AC7 / AC11 / AC12
-  behaviour reliably, without relying on real failures, timing,
-  or fault injection at the network layer.
+  to raise mid-stream. The hook is a Pydantic Settings field named
+  `chat_mock_force_error_token` of type `str | None`. When the
+  field is non-empty and the request body's `message` is exactly
+  equal to its value, the mock generator raises mid-stream and
+  produces the AC7 / AC11 / AC12 behaviour. The match is exact
+  (not substring, not case-insensitive, not whitespace-trimmed).
+  No real network failure, timing, or fault injection at the
+  network layer is required to exercise the path.
 
 Configuration / surface:
 
 - AC18. `settings.chat_message_max_chars` is exposed as a Pydantic
-  Settings positive-integer field with a sensible default (≥ 256).
-  The default value itself is not asserted; QA verifies that a
-  message longer than the configured value is rejected with 422
-  and a message at the configured value is accepted.
-- AC19. The error-path test hook is exposed as a Pydantic Settings
-  field whose default value disables the hook (i.e. the hook is
-  not active in production / dev unless explicitly set). With the
-  hook disabled, normal happy-path requests never trigger the
-  error branch.
+  Settings positive-integer field with a default of `512`. A
+  request whose `message` length (in Python `len(str)` code
+  points) is `≤ 512` is accepted; a request whose length is
+  `> 512` is rejected with HTTP 422.
+- AC19. `settings.chat_mock_force_error_token` defaults to `None`
+  (or an equivalent empty value). With the default in effect, no
+  request body value triggers the error branch; the happy path
+  is reached for every otherwise-valid request.
 
 Reuse / non-regression:
 
@@ -237,6 +245,11 @@ Quality gates:
   constraints.
 - Surfacing the streaming endpoint through `GET /api/articles`
   or any other existing endpoint.
+- A unified backend-wide error-shape contract (the SSE error
+  payload here happens to be `{"error": "<string>"}` and the
+  `AppError` JSON handler emits `{"detail": "<string>"}`; aligning
+  the two — or aligning either with a future global error envelope
+  — is deferred and not required for this task).
 
 ## Open questions / assumptions
 
@@ -272,27 +285,23 @@ Resolved:
   `backend/app/main.py` is reused for the 404 path; no new
   handler shape is introduced.
 
-Open (flag for human sign-off before dev begins):
+Also resolved (post-review with human, 2026-05-07):
 
-- **Whitespace handling on `message`.** Pydantic validation in
-  AC2 rejects an empty string. Whether to also reject a
-  whitespace-only string (e.g. `"   "`) — by trimming first,
-  or by adding a `min_length=1` after `.strip()` — is not
-  decided. The plan file says "non-empty"; that literally
-  permits whitespace-only. **Default assumption for dev:**
-  reject pre-trim only (i.e. `min_length=1` on the raw string).
-  QA may need to update if this is changed.
-- **Maximum message length default.** AC18 leaves the numeric
-  default for `chat_message_max_chars` to dev discretion (≥ 256).
-  No specific value is asserted; if the operator wants a
-  particular ceiling (e.g. 4 000 characters to mirror typical
-  chat input boxes), please confirm before dev locks it in.
-- **Error sentinel content.** AC11 / AC12 require a short,
-  non-empty, sanitised string for both the SSE error event and
-  the persisted `assistant` row. Whether the SSE event message
-  and the persisted row's `content` are the same string, or two
-  different strings (one client-facing, one for history
-  display), is unspecified. **Default assumption for dev:**
-  use the same short string in both. If this should differ
-  (e.g. the persisted row uses a longer human-readable message
-  while the SSE event is terse), please confirm before dev.
+- **Whitespace handling on `message`.** AC2 rejects both empty
+  and whitespace-only strings (i.e. a string whose `.strip()` is
+  empty). Frontend will mirror this validation when the FE task
+  ships; backend remains the authoritative validator.
+- **Maximum message length.** Locked at `512` characters
+  (`len(str)` code points) via the `chat_message_max_chars`
+  default in AC18.
+- **Error sentinel content.** AC12 requires the SSE error event
+  payload and the persisted assistant row's `content` to be
+  byte-for-byte identical. A unified backend-wide error-shape
+  contract is explicitly out of scope for this task and is
+  deferred (see "Out of scope").
+- **Test-hook field name.** Locked: the hook is the Pydantic
+  Settings field `chat_mock_force_error_token` with exact-match
+  semantics on the request body's `message` (AC17 / AC19). QA
+  can target this field name directly.
+
+No open questions remain. Spec is ready for `/write-dev`.
