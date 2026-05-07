@@ -117,6 +117,37 @@ def test_parse_entry_returns_none_for_blank_description():
     assert parse_entry(_entry(summary="   "), Source.NYT) is None
 
 
+def test_parse_entry_cleans_html_in_title_and_description():
+    entry = _entry(
+        title="Apples &amp; <b>oranges</b>",
+        summary="<p>hello world</p>",
+    )
+    result = parse_entry(entry, Source.NYT)
+    assert result is not None
+    assert "<" not in result.title
+    assert "&amp;" not in result.title
+    assert "<" not in result.description
+    assert "Apples" in result.title
+    assert "oranges" in result.title
+    assert "hello" in result.description
+    assert "world" in result.description
+
+
+def test_parse_entry_returns_none_for_tag_only_summary():
+    assert parse_entry(_entry(summary="<p></p>"), Source.NYT) is None
+
+
+def test_parse_entry_returns_none_for_tag_only_title():
+    assert parse_entry(_entry(title="<br/><br/>"), Source.NYT) is None
+
+
+def test_parse_entry_preserves_url_query_and_fragment():
+    url = "https://example.com/path?a=1&b=2#frag"
+    result = parse_entry(_entry(link=url), Source.NYT)
+    assert result is not None
+    assert result.url == url
+
+
 # --- ingest_all ---
 
 

@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     scrape_max_per_source: int = 10
     scrape_interval_minutes: int = 60
     transform_recovery_threshold_minutes: int = Field(default=5, gt=0)
+    chat_message_max_chars: int = Field(default=512, gt=0)
+    chat_mock_force_error_token: str | None = None
 
 
 settings = Settings()
