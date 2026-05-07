@@ -63,6 +63,6 @@ Add a unit test that verifies the cron entry is registered and points at recover
 should we collect it from the articles request instead ?
 let's think a bit
 
-
 5. Cron Job - MUST DO easy win
-6. Zustand Store - because the assignment mentions it
+
+6. That changes the picture. The remaining genuine gaps are: (1) cron — actively closing it; (2) near-dup — open; (3) CI workflow — open; (4) README diagram + tokens-used column

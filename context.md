@@ -160,6 +160,15 @@ Source identity is a Python `StrEnum` in `backend/app/sources.py`. No `sources` 
 Postgres enum type is generated from the StrEnum — drift is impossible by construction. Adding a
 source = one line in the enum + one line in `FEED_URLS` + an `ALTER TYPE` migration.
 
+### Periodic Scraping via ARQ Cron
+
+Scheduled scraping runs as an ARQ cron job inside the existing `worker` container, firing at
+wall-clock `:00` and `:30` of every hour. The cron handler reuses `scraper.scrape_cycle` — the
+same helper invoked from the FastAPI startup lifespan — so startup and periodic scrapes share
+one code path. We chose ARQ cron over external schedulers (host cron, Kubernetes CronJob, GitHub
+Actions, separate scheduler container) because ARQ + Redis is already in the stack, the worker
+process already runs continuously, and ARQ's native cron support adds zero new dependencies.
+
 ---
 
 ## Standards
