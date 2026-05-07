@@ -43,9 +43,7 @@ async def transform_article(ctx: dict, article_id: int) -> None:
             )
         except Exception as exc:
             await session.rollback()
-            await session.execute(
-                sa.delete(Article).where(Article.id == article_id)
-            )
+            await session.execute(sa.delete(Article).where(Article.id == article_id))
             await session.commit()
             log.error(
                 "worker.transform.failed article_id=%d exc_type=%s",
