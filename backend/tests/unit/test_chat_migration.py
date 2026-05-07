@@ -6,17 +6,20 @@ def _load_chat_migration():
     versions_dir = Path(__file__).parents[2] / "migrations" / "versions"
     revision_files = [f for f in versions_dir.glob("*.py") if f.name != "__init__.py"]
 
+    matches = []
     for path in revision_files:
         spec = importlib.util.spec_from_file_location(f"_migration_{path.stem}", path)
         assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        if getattr(module, "down_revision", None) == "cfe2a836394a":
-            return module, path.read_text()
+        if (
+            getattr(module, "down_revision", None) == "cfe2a836394a"
+            and "chat_messages" in path.stem
+        ):
+            matches.append((module, path.read_text()))
 
-    raise AssertionError(
-        "No revision with down_revision='cfe2a836394a' (chat_messages migration)"
-    )
+    assert len(matches) == 1, "Expected exactly one chat_messages migration revision"
+    return matches[0]
 
 
 def test_chat_migration_down_revision_is_genesis():

@@ -13,18 +13,19 @@ log = logging.getLogger(__name__)
 async def get_chat_history(
     session: AsyncSession, article_id: int
 ) -> ChatHistoryResponse:
-    article_exists = await session.scalar(
-        select(Article.id).where(Article.id == article_id)
-    )
-    if article_exists is None:
-        raise NotFoundError(f"Article {article_id} not found")
-
     result = await session.execute(
         select(ChatMessage)
         .where(ChatMessage.article_id == article_id)
         .order_by(ChatMessage.created_at.asc(), ChatMessage.id.asc())
     )
     rows = result.scalars().all()
+
+    if not rows:
+        article_exists = await session.scalar(
+            select(Article.id).where(Article.id == article_id)
+        )
+        if article_exists is None:
+            raise NotFoundError(f"Article {article_id} not found")
 
     messages = [ChatMessageOut.model_validate(row) for row in rows]
     log.info("chat.history.get article_id=%d count=%d", article_id, len(messages))
