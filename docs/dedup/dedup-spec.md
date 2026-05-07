@@ -152,7 +152,7 @@ explicitly stated otherwise.
 - The tokenizer applied to titles produces tokens that are: lowercased,
   punctuation-stripped, whitespace-split, with stopwords removed and any
   token of length `<= 2` removed.
-- The stopword set is **frozen and exhaustive** — exactly these 11
+- The stopword set is **frozen and exhaustive** — exactly these 12
   words, no more, no less:
 
   ```text
@@ -226,14 +226,20 @@ explicitly stated otherwise.
 
 ### Test-coverage policy
 
-- **No unit tests are required for this task.** Coverage is integration
-  only: a `POST /api/scrape` flow exercised against a real Postgres + the
-  mock embedding/transform path, asserting the response counters and the
-  `articles` / `article_embeddings` rows that result. The pure helpers
-  (tokenizer, Jaccard, cosine, `find_near_duplicate`) are deliberately
-  not unit-tested in v1; the integration path covers them transitively.
-- This is a deliberate scope cut to fit the time budget. Adding unit
-  tests later is non-breaking.
+- **Unit tests required, integration tests not required.** Every
+  acceptance criterion in this spec must be covered by at least one
+  unit test, named so the test name maps unambiguously to the criterion
+  it covers (per project workflow). The pure helpers (tokenizer,
+  Jaccard, cosine, `find_near_duplicate`) and the
+  hash-deterministic-mock contract are direct unit-test targets. The
+  per-candidate flow inside `ingest_all` and the response shape from
+  `POST /api/scrape` are unit-tested with mocked DB / mocked OpenAI,
+  matching the existing pattern in
+  [`backend/tests/routers/test_scrape.py`](../../backend/tests/routers/test_scrape.py)
+  and [`backend/tests/unit/test_scraper.py`](../../backend/tests/unit/test_scraper.py).
+- **No new integration tests are added.** The scrape flow against a
+  real Postgres is deliberately out of scope for this task. Existing
+  integration tests must keep passing unchanged.
 
 ### Tunable settings
 
@@ -268,6 +274,9 @@ explicitly stated otherwise.
 - `make` targets / linters still pass: `ruff` and `black` clean on new
   code per [context.md](../../context.md), and `make docs-fix && make
   docs-lint` clean for new `.md` files per the project `CLAUDE.md`.
+- Existing test suites (unit + integration + router) continue to pass
+  unchanged. The dedup task adds no new tests, but must not break
+  any pre-existing test.
 
 ## Out of scope
 
@@ -315,7 +324,7 @@ Recorded here so dev/QA agents pick up the calls without re-asking.
 5. **Within-batch winner is implementation-walk-order.** Exactly one of
    two mutual near-dups in the same run wins; which one is unspecified.
    QA must not assert which.
-6. **Stopword list frozen at 11 words.** No "dev may extend". Extension
+6. **Stopword list frozen at 12 words.** No "dev may extend". Extension
    is a spec change. See the tokenizer criterion above.
 7. **Source filter — none.** Dedup compares across the entire in-window
    set regardless of source.

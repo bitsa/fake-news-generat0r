@@ -1,6 +1,7 @@
 import sqlalchemy as sa
+from pgvector.sqlalchemy import Vector
 
-from app.models import Article, ArticleFake, Base, ChatMessage
+from app.models import Article, ArticleEmbedding, ArticleFake, Base, ChatMessage
 from app.sources import Source
 
 
@@ -8,10 +9,40 @@ def test_tablenames():
     assert Article.__tablename__ == "articles"
     assert ArticleFake.__tablename__ == "article_fakes"
     assert ChatMessage.__tablename__ == "chat_messages"
+    assert ArticleEmbedding.__tablename__ == "article_embeddings"
 
 
 def test_metadata_tables():
-    assert set(Base.metadata.tables) == {"articles", "article_fakes", "chat_messages"}
+    assert set(Base.metadata.tables) == {
+        "articles",
+        "article_fakes",
+        "chat_messages",
+        "article_embeddings",
+    }
+
+
+def test_article_embeddings_table_has_article_id_pk_and_cascade_fk_to_articles():
+    col = ArticleEmbedding.__table__.c.article_id
+    assert col.primary_key is True
+    fks = list(col.foreign_keys)
+    assert len(fks) == 1
+    fk = fks[0]
+    assert fk.column.table.name == "articles"
+    assert fk.column.name == "id"
+    assert fk.ondelete == "CASCADE"
+
+
+def test_article_embeddings_columns_match_spec():
+    cols = ArticleEmbedding.__table__.c
+    assert isinstance(cols.embedding.type, Vector)
+    assert cols.embedding.type.dim == 1536
+    assert cols.embedding.nullable is False
+    assert isinstance(cols.model.type, sa.String)
+    assert cols.model.type.length == 64
+    assert cols.model.nullable is False
+    assert isinstance(cols.created_at.type, sa.DateTime)
+    assert cols.created_at.type.timezone is True
+    assert cols.created_at.server_default is not None
 
 
 def test_article_source_enum_binding():

@@ -27,6 +27,7 @@ Stack: **FastAPI + ARQ + Postgres (pgvector) + Redis** on the backend,
    - [2. News website UI](#2-news-website-ui)
    - [3. Chat interface (streaming)](#3-chat-interface-streaming)
    - [4. Periodic scraping (bonus)](#4-periodic-scraping-bonus)
+   - [5. Near-duplicate detection (bonus)](#5-near-duplicate-detection-bonus)
 4. [Evaluation-criteria mapping](#evaluation-criteria-mapping)
 5. [Beyond the brief](#beyond-the-brief)
 6. [Local dev workflow](#local-dev-workflow)
@@ -117,7 +118,7 @@ inserts; the LLM call happens out-of-band on the worker.
 
 | Method | Path | Behavior |
 |---|---|---|
-| `POST` | `/api/scrape` | Fetch all feeds, insert new articles, enqueue transforms. Returns `{ inserted, fetched }` with `202`. |
+| `POST` | `/api/scrape` | Fetch all feeds, dedup, insert new articles, enqueue transforms. Returns `{ inserted, fetched, skipped_url_duplicates, skipped_near_duplicates, embedding_calls }` with `202`. |
 | `GET` | `/api/articles` | Returns the full feed (originals + fakes joined). |
 
 #### Flow
@@ -259,6 +260,120 @@ GitHub Actions, separate scheduler container) because ARQ + Redis is
 already in the stack, the worker process already runs continuously, and
 ARQ's native cron support adds zero new dependencies.
 
+### 5. Near-duplicate detection (bonus)
+
+The brief asks (under *Bonus*): *"Article similarity detection (avoid
+scraping near-duplicates from different sources)."* Today the URL gate
+already drops exact-URL reposts via `ON CONFLICT (url)`, but the same
+wire piece syndicated under different URLs across NYT / NPR / Guardian
+sails through. That wastes a row in `articles`, a row in `article_fakes`,
+an ARQ job, and an OpenAI transform call per duplicate. The dedup feature
+closes that gap with a hybrid **title-Jaccard → embedding-cosine** pipeline
+that keeps embedding spend sparse: most candidates are decided by the cheap
+Jaccard pass, and only an ambiguous middle band escalates to a vector call.
+
+#### Flow
+
+```mermaid
+flowchart TD
+    Start([candidate from RSS feed])
+    UrlGate{URL already<br/>in articles?}
+    Tokenize[tokenize title<br/>lowercase, strip punct,<br/>drop ≤2-char + 12 stopwords]
+    Jaccard[max Jaccard vs<br/>in-window incumbents<br/>168h: COALESCE published_at, created_at]
+
+    Band{j_max band?}
+    SkipJaccard[/skip<br/>reason=jaccard/]
+    InsertOnly[insert article<br/>+ pending fake row<br/>+ enqueue ARQ job]
+    Embed[embed candidate<br/>cosine vs each incumbent<br/>with jaccard ≥ floor]
+
+    CosineMatch{any cosine ≥<br/>0.88?}
+    SkipEmbed[/skip<br/>reason=embedding/]
+    InsertEmbed[insert article<br/>+ pending fake row<br/>+ persist embedding row<br/>+ enqueue ARQ job]
+
+    UrlSkip[/skip<br/>URL duplicate/]
+
+    Start --> UrlGate
+    UrlGate -- yes --> UrlSkip
+    UrlGate -- no --> Tokenize --> Jaccard --> Band
+    Band -- "≥ 0.80 (high)" --> SkipJaccard
+    Band -- "< 0.40 (low)" --> InsertOnly
+    Band -- "0.40 ≤ j < 0.80" --> Embed --> CosineMatch
+    CosineMatch -- yes --> SkipEmbed
+    CosineMatch -- no --> InsertEmbed
+```
+
+#### What lands in the database
+
+```mermaid
+flowchart LR
+    A[articles<br/>existing 1:1 with article_fakes]
+    AF[article_fakes<br/>pending → completed]
+    AE[(article_embeddings<br/>article_id PK + cascade FK<br/>vector(1536), model, created_at)]
+
+    A --> AF
+    A -.->|sparse 1:0..1<br/>ambiguous-band winners only| AE
+```
+
+`article_embeddings` is **sparse on purpose**: most articles never enter
+the ambiguous Jaccard band, so most rows in `articles` have no sibling
+embedding. Cold incumbents that *do* get embedded during the cosine pass
+have their vector persisted too — the contract resolved decision in
+[`docs/dedup/dedup-spec.md`](./docs/dedup/dedup-spec.md) is that the
+first ambiguous-band hit may legitimately produce `embedding_calls = 2`
+(candidate + cold incumbent), and persistence makes that a one-time cost.
+
+#### Why hybrid (Jaccard then embedding)
+
+A pure cosine pipeline would call OpenAI per candidate per incumbent —
+fine on a slide, expensive in steady state. A pure Jaccard pipeline
+misses paraphrased headlines about the same wire piece. The hybrid keeps
+the cheap Jaccard as the dominant decider and only pays for an embedding
+when the Jaccard score is genuinely ambiguous (`0.40 ≤ j < 0.80`), which
+is rare on real RSS traffic. The **dollar win is not the embedding fee
+itself but the avoided downstream transform call** on the satirical
+rewrite — embeddings are roughly two orders of magnitude cheaper than
+chat completions.
+
+#### Operator visibility
+
+`POST /api/scrape` returns four new counters alongside `inserted` /
+`fetched`:
+
+```json
+{
+  "inserted": 7,
+  "fetched": 30,
+  "skipped_url_duplicates": 14,
+  "skipped_near_duplicates": 9,
+  "embedding_calls": 2
+}
+```
+
+On a steady-state scrape against a mostly-stable feed the operator sees
+high skip counts and a low — often zero — embedding-call count. Each
+near-duplicate skip also emits one `info` log line carrying `reason`
+(`jaccard` or `embedding`) and the `matched_article_id` of the incumbent
+that triggered it.
+
+#### Tunables
+
+All thresholds are env-overridable Pydantic Settings (defaults locked in
+[`docs/dedup/dedup-spec.md`](./docs/dedup/dedup-spec.md)):
+
+| Setting | Default | Effect |
+|---|---|---|
+| `DEDUP_WINDOW_HOURS` | `168` (7 days) | Comparison window for incumbents. |
+| `DEDUP_JACCARD_HIGH` | `0.80` | Cheap-path skip threshold. |
+| `DEDUP_JACCARD_FLOOR` | `0.40` | Below this, insert without embedding. |
+| `DEDUP_COSINE_THRESHOLD` | `0.88` | Embedding-cosine match threshold. |
+| `OPENAI_MODEL_EMBEDDING` | `text-embedding-3-small` | Embedding model. |
+
+Source files:
+[`backend/app/services/dedup.py`](./backend/app/services/dedup.py),
+[`backend/app/services/embedding.py`](./backend/app/services/embedding.py),
+integration into the scrape pipeline at
+[`backend/app/services/scraper.py`](./backend/app/services/scraper.py).
+
 ---
 
 ## Evaluation-criteria mapping
@@ -305,9 +420,10 @@ affect quality or demoability:
   refusal handling — fully specced under
   [`docs/ai-guardrails/`](./docs/ai-guardrails/), implementation deferred.
   Surfaces in `future_work.md`.
-- **pgvector from day one.** Image is `pgvector/pgvector:pg16` so the
-  near-duplicate detection feature ([`docs/dedup/`](./docs/dedup/)) is a
-  no-migration switch-on. Today the extension is a no-op.
+- **pgvector from day one.** Image is `pgvector/pgvector:pg16`, which
+  let the dedup feature ship without a container rebuild — see
+  [§ 5. Near-duplicate detection](#5-near-duplicate-detection-bonus)
+  above and [`docs/dedup/`](./docs/dedup/).
 - **Deterministic source enum.** No `sources` table — Python `StrEnum`
   mirrored as a Postgres enum type via Alembic. Adding a source is one
   enum line + one feed URL + a one-line `ALTER TYPE` migration.

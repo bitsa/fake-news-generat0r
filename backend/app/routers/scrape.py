@@ -16,4 +16,10 @@ async def scrape(
 ) -> dict:
     result = await scraper.ingest_all(session)
     await transformer.create_and_enqueue(session, arq_pool, result.inserted)
-    return {"inserted": len(result.inserted), "fetched": result.fetched}
+    return {
+        "inserted": len(result.inserted),
+        "fetched": result.fetched,
+        "skipped_url_duplicates": result.skipped_url_duplicates,
+        "skipped_near_duplicates": result.skipped_near_duplicates,
+        "embedding_calls": result.embedding_calls,
+    }

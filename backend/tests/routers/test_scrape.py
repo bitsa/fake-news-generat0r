@@ -99,7 +99,13 @@ async def test_post_scrape_happy_path_returns_202_with_inserted_and_fetched(
     scrape_client,
 ):
     article = Article(source=Source.NYT, title="T", url="http://x.com", description="D")
-    result = IngestResult(inserted=[article, article], fetched=5)
+    result = IngestResult(
+        inserted=[article, article],
+        fetched=5,
+        skipped_url_duplicates=1,
+        skipped_near_duplicates=2,
+        embedding_calls=3,
+    )
 
     mock_enqueue = AsyncMock()
     with (
@@ -112,7 +118,13 @@ async def test_post_scrape_happy_path_returns_202_with_inserted_and_fetched(
         r = await scrape_client.post("/api/scrape")
 
     assert r.status_code == 202
-    assert r.json() == {"inserted": 2, "fetched": 5}
+    assert r.json() == {
+        "inserted": 2,
+        "fetched": 5,
+        "skipped_url_duplicates": 1,
+        "skipped_near_duplicates": 2,
+        "embedding_calls": 3,
+    }
     mock_enqueue.assert_awaited_once()
 
 
@@ -145,7 +157,13 @@ async def test_post_scrape_second_call_returns_202_with_zero_inserted(scrape_cli
         r = await scrape_client.post("/api/scrape")
 
     assert r.status_code == 202
-    assert r.json() == {"inserted": 0, "fetched": 8}
+    assert r.json() == {
+        "inserted": 0,
+        "fetched": 8,
+        "skipped_url_duplicates": 0,
+        "skipped_near_duplicates": 0,
+        "embedding_calls": 0,
+    }
 
 
 async def test_post_scrape_awaits_create_and_enqueue_before_returning_response(

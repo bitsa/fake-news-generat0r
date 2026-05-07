@@ -5,6 +5,9 @@ import { apiFetch } from "./client";
 export interface ScrapeResponse {
   inserted: number;
   fetched: number;
+  skipped_url_duplicates: number;
+  skipped_near_duplicates: number;
+  embedding_calls: number;
 }
 
 export function getArticles(): Promise<ArticlesResponse> {

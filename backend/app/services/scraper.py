@@ -1,21 +1,25 @@
 import logging
 import time
-from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
 import feedparser
 import httpx
 from arq.connections import ArqRedis
-from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.db import AsyncSessionLocal
 from app.exceptions import ServiceUnavailableError
-from app.models import Article
+from app.models import Article, ArticleEmbedding
 from app.services import transformer
+from app.services.dedup import (
+    Incumbent,
+    find_near_duplicate,
+    tokenize,
+)
 from app.services.sanitize import clean_text
 from app.sources import FEED_URLS, Source
 
@@ -26,8 +30,11 @@ type RawEntry = Any
 
 @dataclass
 class IngestResult:
-    inserted: list[Article]
-    fetched: int
+    inserted: list[Article] = field(default_factory=list)
+    fetched: int = 0
+    skipped_url_duplicates: int = 0
+    skipped_near_duplicates: int = 0
+    embedding_calls: int = 0
 
 
 async def fetch_feed(source: Source) -> list[RawEntry]:
@@ -70,16 +77,52 @@ def parse_entry(entry: RawEntry, source: Source) -> Article | None:
     )
 
 
+async def _load_incumbents(session: AsyncSession) -> list[Incumbent]:
+    stmt = text("""
+        SELECT a.id, a.title, a.description, ae.embedding
+          FROM articles a
+          LEFT JOIN article_embeddings ae ON ae.article_id = a.id
+         WHERE COALESCE(a.published_at, a.created_at)
+               > now() - make_interval(hours => :hours)
+        """)
+    rows = await session.execute(stmt, {"hours": settings.dedup_window_hours})
+    incumbents: list[Incumbent] = []
+    for row in rows:
+        article_id, title, description, embedding = row
+        emb_list: list[float] | None
+        if embedding is None:
+            emb_list = None
+        else:
+            emb_list = list(embedding)
+        incumbents.append(
+            Incumbent(
+                article_id=article_id,
+                tokens=tokenize(title or ""),
+                text=f"{title or ''}\n\n{description or ''}",
+                embedding=emb_list,
+            )
+        )
+    return incumbents
+
+
+async def _url_exists(session: AsyncSession, url: str) -> bool:
+    existing_id = await session.scalar(select(Article.id).where(Article.url == url))
+    return existing_id is not None
+
+
 async def ingest_all(session: AsyncSession) -> IngestResult:
     sources = list(Source)
     log.info("scraper.ingest.begin sources=%d", len(sources))
-    all_inserted: list[Article] = []
-    total_fetched: int = 0
-    failed: int = 0
+    result = IngestResult()
+    failed = 0
+
+    incumbents = await _load_incumbents(session)
 
     for source in sources:
         try:
             raw_entries = await fetch_feed(source)
+            result.fetched += len(raw_entries)
+
             valid_articles: list[Article] = []
             for entry in raw_entries:
                 article = parse_entry(entry, source)
@@ -92,51 +135,63 @@ async def ingest_all(session: AsyncSession) -> IngestResult:
                     continue
                 valid_articles.append(article)
 
-            total_fetched += len(raw_entries)
             source_inserted: list[Article] = []
-
-            if valid_articles:
-                stmt = (
-                    pg_insert(Article)
-                    .values(
-                        [
-                            {
-                                "source": a.source,
-                                "title": a.title,
-                                "url": a.url,
-                                "description": a.description,
-                                "published_at": a.published_at,
-                            }
-                            for a in valid_articles
-                        ]
-                    )
-                    .on_conflict_do_nothing(index_elements=["url"])
-                    .returning(Article)
-                )
-                result = await session.execute(stmt)
-                source_inserted = list(result.scalars().all())
-
-            await session.commit()
-            all_inserted.extend(source_inserted)
-            dupes_skipped = len(valid_articles) - len(source_inserted)
-            log.info(
-                "scraper.source.ok source=%s fetched=%d inserted=%d dupes_skipped=%d",
-                source,
-                len(raw_entries),
-                len(source_inserted),
-                dupes_skipped,
-            )
-            if dupes_skipped > 0:
-                inserted_counts = Counter(a.url for a in source_inserted)
-                for a in valid_articles:
-                    if inserted_counts[a.url] > 0:
-                        inserted_counts[a.url] -= 1
-                        continue
+            for cand in valid_articles:
+                if await _url_exists(session, cand.url):
+                    result.skipped_url_duplicates += 1
                     log.debug(
                         "scraper.entry.duplicate source=%s url=%s",
                         source,
-                        a.url,
+                        cand.url,
                     )
+                    continue
+
+                cand_text = f"{cand.title}\n\n{cand.description}"
+                decision = await find_near_duplicate(
+                    session, cand.title, cand_text, incumbents
+                )
+                result.embedding_calls += decision.embedding_calls
+
+                if not decision.accept:
+                    result.skipped_near_duplicates += 1
+                    log.info(
+                        "scraper.dedup.skip reason=%s candidate_url=%s "
+                        "matched_article_id=%d",
+                        decision.reason,
+                        cand.url,
+                        decision.matched_article_id,
+                    )
+                    await session.commit()
+                    continue
+
+                session.add(cand)
+                await session.flush()
+                if decision.candidate_embedding is not None:
+                    session.add(
+                        ArticleEmbedding(
+                            article_id=cand.id,
+                            embedding=decision.candidate_embedding,
+                            model=settings.openai_model_embedding,
+                        )
+                    )
+                await session.commit()
+                source_inserted.append(cand)
+                incumbents.append(
+                    Incumbent(
+                        article_id=cand.id,
+                        tokens=tokenize(cand.title),
+                        text=cand_text,
+                        embedding=decision.candidate_embedding,
+                    )
+                )
+
+            result.inserted.extend(source_inserted)
+            log.info(
+                "scraper.source.ok source=%s fetched=%d inserted=%d",
+                source,
+                len(raw_entries),
+                len(source_inserted),
+            )
 
         except Exception:
             await session.rollback()
@@ -148,12 +203,16 @@ async def ingest_all(session: AsyncSession) -> IngestResult:
         raise ServiceUnavailableError("All RSS sources failed")
 
     log.info(
-        "scraper.ingest.complete fetched=%d inserted=%d failed=%d",
-        total_fetched,
-        len(all_inserted),
+        "scraper.ingest.complete fetched=%d inserted=%d "
+        "skipped_url=%d skipped_near=%d embed_calls=%d failed=%d",
+        result.fetched,
+        len(result.inserted),
+        result.skipped_url_duplicates,
+        result.skipped_near_duplicates,
+        result.embedding_calls,
         failed,
     )
-    return IngestResult(inserted=all_inserted, fetched=total_fetched)
+    return result
 
 
 async def scrape_cycle(arq_pool: ArqRedis) -> IngestResult:

@@ -226,6 +226,102 @@ def test_env_example_pre_existing_openai_keys_are_unchanged_by_chat_llm_task():
     assert not missing, f"chat-llm task altered pre-existing OpenAI lines: {missing}"
 
 
+def test_dedup_window_hours_default_is_168_and_must_be_positive(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@h/db")
+    monkeypatch.setenv("REDIS_URL", "redis://h:6379/1")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-xyz")
+    monkeypatch.delenv("DEDUP_WINDOW_HOURS", raising=False)
+
+    import app.config as config_module
+
+    importlib.reload(config_module)
+    assert config_module.Settings().dedup_window_hours == 168
+
+    from app.config import Settings
+
+    monkeypatch.setenv("DEDUP_WINDOW_HOURS", "0")
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)  # type: ignore[call-arg]
+    monkeypatch.setenv("DEDUP_WINDOW_HOURS", "-1")
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)  # type: ignore[call-arg]
+
+
+def test_dedup_jaccard_high_default_is_080_and_within_zero_one(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@h/db")
+    monkeypatch.setenv("REDIS_URL", "redis://h:6379/1")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-xyz")
+    monkeypatch.delenv("DEDUP_JACCARD_HIGH", raising=False)
+
+    import app.config as config_module
+
+    importlib.reload(config_module)
+    assert config_module.Settings().dedup_jaccard_high == 0.80
+
+    from app.config import Settings
+
+    monkeypatch.setenv("DEDUP_JACCARD_HIGH", "0")
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)  # type: ignore[call-arg]
+    monkeypatch.setenv("DEDUP_JACCARD_HIGH", "1.5")
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)  # type: ignore[call-arg]
+
+
+def test_dedup_jaccard_floor_default_is_040_and_within_zero_one(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@h/db")
+    monkeypatch.setenv("REDIS_URL", "redis://h:6379/1")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-xyz")
+    monkeypatch.delenv("DEDUP_JACCARD_FLOOR", raising=False)
+
+    import app.config as config_module
+
+    importlib.reload(config_module)
+    assert config_module.Settings().dedup_jaccard_floor == 0.40
+
+    from app.config import Settings
+
+    monkeypatch.setenv("DEDUP_JACCARD_FLOOR", "-0.1")
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)  # type: ignore[call-arg]
+    monkeypatch.setenv("DEDUP_JACCARD_FLOOR", "1.5")
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)  # type: ignore[call-arg]
+
+
+def test_dedup_cosine_threshold_default_is_088_and_within_zero_one(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@h/db")
+    monkeypatch.setenv("REDIS_URL", "redis://h:6379/1")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-xyz")
+    monkeypatch.delenv("DEDUP_COSINE_THRESHOLD", raising=False)
+
+    import app.config as config_module
+
+    importlib.reload(config_module)
+    assert config_module.Settings().dedup_cosine_threshold == 0.88
+
+    from app.config import Settings
+
+    monkeypatch.setenv("DEDUP_COSINE_THRESHOLD", "0")
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)  # type: ignore[call-arg]
+    monkeypatch.setenv("DEDUP_COSINE_THRESHOLD", "1.01")
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)  # type: ignore[call-arg]
+
+
+def test_openai_model_embedding_default_is_text_embedding_3_small(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@h/db")
+    monkeypatch.setenv("REDIS_URL", "redis://h:6379/1")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-xyz")
+    monkeypatch.delenv("OPENAI_MODEL_EMBEDDING", raising=False)
+
+    import app.config as config_module
+
+    importlib.reload(config_module)
+    assert config_module.Settings().openai_model_embedding == "text-embedding-3-small"
+
+
 def test_clean_module_state_after():
     """Restore the singleton module after monkeypatched env reloads above."""
     if "DATABASE_URL" not in os.environ:
