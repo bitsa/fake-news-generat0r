@@ -48,11 +48,31 @@ def _compose(
         ) from exc
 
 
+def _parse_compose_ps_json(out: str) -> list[dict]:
+    """Parse `docker compose ps --format json` across CLI versions.
+
+    Older CLIs emit a JSON array; newer ones emit a single object (when one
+    service is targeted) or NDJSON (one object per line, multi-service).
+    """
+    out = (out or "").strip()
+    if not out:
+        return []
+    try:
+        parsed = json.loads(out)
+    except json.JSONDecodeError:
+        return [json.loads(line) for line in out.splitlines() if line.strip()]
+    if isinstance(parsed, list):
+        return parsed
+    if isinstance(parsed, dict):
+        return [parsed]
+    return []
+
+
 def _wait_for_healthy(service: str, timeout: float = DEPS_HEALTHY_TIMEOUT_S) -> None:
     deadline = time.time() + timeout
     while time.time() < deadline:
         out = _compose("ps", "--format", "json", service).stdout
-        for row in json.loads(out or "[]"):
+        for row in _parse_compose_ps_json(out):
             if row.get("Service") == service and row.get("Health") == "healthy":
                 return
         time.sleep(1)

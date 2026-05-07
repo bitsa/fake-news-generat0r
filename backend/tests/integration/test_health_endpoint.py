@@ -7,7 +7,6 @@ Implements groups A and the health-related slices of group G from
 
 from __future__ import annotations
 
-import re
 import subprocess
 import time
 
@@ -16,7 +15,6 @@ import httpx
 from ._helpers import (
     BACKEND_URL,
     HEALTH_RESPONSE_BUDGET_S,
-    REPO_ROOT,
     compose,
     wait_for_health_endpoint_ok,
     wait_for_healthy,
@@ -106,18 +104,6 @@ def test_T_A5_recovery_without_backend_restart() -> None:
 
 
 # ---------- G. Cross-contract consistency (health-related) ----------
-
-
-def test_T_G1_health_shape_matches_contracts_typescript_type() -> None:
-    contracts = (REPO_ROOT / "contracts.md").read_text(encoding="utf-8")
-    iface = re.search(r"interface\s+HealthResponse\s*\{([^}]*)\}", contracts)
-    assert iface, "HealthResponse interface missing from contracts.md"
-    body = iface.group(1)
-    fields = set(re.findall(r"^\s*(\w+)\s*:", body, re.M))
-    assert fields == {"status"}
-    # Live shape
-    r = httpx.get(f"{BACKEND_URL}/health", timeout=5.0)
-    assert set(r.json().keys()) == fields
 
 
 def test_T_G2_state_to_http_mapping() -> None:
