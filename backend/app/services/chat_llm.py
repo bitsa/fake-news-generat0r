@@ -113,8 +113,8 @@ async def _stream_real_llm(
         delta = getattr(choices[0], "delta", None)
         if delta is None:
             continue
-        text = getattr(delta, "content", None) or ""
-        if text.strip():
+        text = getattr(delta, "content", None)
+        if text:
             yield text
 
 
