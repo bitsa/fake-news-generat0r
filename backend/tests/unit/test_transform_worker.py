@@ -231,11 +231,12 @@ async def test_transform_article_skips_nonexistent_article_id_logs_skip_event(ca
 
 
 # ---------------------------------------------------------------------------
-# Exception path — service raises, fake row deleted, articles preserved
+# Exception path — service raises, parent article deleted (cascade clears fake);
+# next scrape will re-insert (no URL conflict) and re-enqueue a fresh pending row.
 # ---------------------------------------------------------------------------
 
 
-async def test_transform_article_deletes_fake_row_on_unexpected_exception():
+async def test_transform_article_deletes_article_row_on_unexpected_exception():
     fake = _make_fake(7)
     article = _make_article(7)
     mock_local, mock_session = _make_session_cm(get_returns=[fake, article])
@@ -251,7 +252,9 @@ async def test_transform_article_deletes_fake_row_on_unexpected_exception():
     mock_session.commit.assert_awaited_once()
 
 
-async def test_transform_article_preserves_article_row_when_fake_deleted_on_exception():
+async def test_transform_article_failure_targets_articles_table_not_fakes():
+    from app.models import Article
+
     fake = _make_fake(8)
     article = _make_article(8)
     mock_local, mock_session = _make_session_cm(get_returns=[fake, article])
@@ -262,8 +265,13 @@ async def test_transform_article_preserves_article_row_when_fake_deleted_on_exce
     ):
         await transform_article({}, article_id=8)
 
-    # Only one execute call — the targeted ArticleFake delete; articles untouched
     assert mock_session.execute.await_count == 1
+    stmt = mock_session.execute.await_args.args[0]
+    assert stmt.table.name == Article.__tablename__
+    compiled = stmt.compile(compile_kwargs={"literal_binds": True})
+    sql = str(compiled).lower()
+    assert " where " in sql
+    assert f"{Article.__tablename__}.id = 8" in sql
 
 
 async def test_transform_article_failure_emits_one_error_log_with_article_id(caplog):

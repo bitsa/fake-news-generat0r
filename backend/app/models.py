@@ -1,6 +1,7 @@
 from datetime import datetime
 
 import sqlalchemy as sa
+from pgvector.sqlalchemy import Vector
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from app.sources import Source
@@ -65,6 +66,21 @@ class ArticleFake(Base):
     )
 
     article: Mapped["Article"] = relationship("Article", back_populates="fake")
+
+
+class ArticleEmbedding(Base):
+    __tablename__ = "article_embeddings"
+
+    article_id: Mapped[int] = mapped_column(
+        sa.Integer,
+        sa.ForeignKey("articles.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    embedding: Mapped[list[float]] = mapped_column(Vector(1536), nullable=False)
+    model: Mapped[str] = mapped_column(sa.String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    )
 
 
 class ChatMessage(Base):

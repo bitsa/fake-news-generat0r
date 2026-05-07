@@ -7,14 +7,16 @@ WORKDIR /app
 RUN groupadd --system app && useradd --system --gid app --no-create-home app \
     && chown app:app /app
 
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv
+
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-install-project
 
 COPY . .
 RUN uv sync --frozen \
-    && chown -R app:app /app
+    && chown -R app:app /app /opt/venv
 
-ENV PATH="/app/.venv/bin:$PATH" \
+ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1
 
 USER app

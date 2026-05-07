@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,6 +21,17 @@ class Settings(BaseSettings):
     chat_llm_mock: bool = True
     chat_history_window: int = Field(default=10, gt=0)
     chat_max_output_tokens: int = Field(default=512, gt=0)
+    dedup_window_hours: int = Field(default=168, gt=0)
+    dedup_jaccard_high: float = Field(default=0.80, gt=0.0, le=1.0)
+    dedup_jaccard_floor: float = Field(default=0.40, ge=0.0, le=1.0)
+    dedup_cosine_threshold: float = Field(default=0.88, gt=0.0, le=1.0)
+    openai_model_embedding: str = "text-embedding-3-small"
+
+    @model_validator(mode="after")
+    def _validate_dedup_threshold_order(self) -> "Settings":
+        if self.dedup_jaccard_floor >= self.dedup_jaccard_high:
+            raise ValueError("dedup_jaccard_floor must be < dedup_jaccard_high")
+        return self
 
 
 settings = Settings()
