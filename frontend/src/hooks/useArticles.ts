@@ -7,5 +7,10 @@ export function useArticles(): UseQueryResult<ArticlesResponse, Error> {
   return useQuery<ArticlesResponse, Error>({
     queryKey: ["articles"],
     queryFn: getArticles,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 }
