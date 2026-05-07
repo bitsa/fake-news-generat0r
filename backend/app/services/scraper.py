@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.exceptions import ServiceUnavailableError
 from app.models import Article
+from app.services.sanitize import clean_text
 from app.sources import FEED_URLS, Source
 
 log = logging.getLogger(__name__)
@@ -45,9 +46,9 @@ async def fetch_feed(source: Source) -> list[RawEntry]:
 
 
 def parse_entry(entry: RawEntry, source: Source) -> Article | None:
-    title = (entry.get("title") or "").strip()
+    title = clean_text(entry.get("title") or "")
     url = (entry.get("link") or "").strip()
-    description = (entry.get("summary") or "").strip()
+    description = clean_text(entry.get("summary") or "")
 
     if not title or not url or not description:
         return None
