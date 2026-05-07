@@ -1,0 +1,87 @@
+/* Fakeline design tokens — extracted from Fake News.html <style> block.
+ * Drop this into your real app at web/src/lib/tokens.css and import it once
+ * from web/src/main.tsx (or the equivalent entry).
+ *
+ * Tailwind users: mirror these values into tailwind.config.js theme.extend.
+ * See CLAUDE.md for the recommended config snippet.
+ */
+:root {
+  /* Surface */
+  --bg:     #0E0E0E;
+  --bg-2:   #161616;
+  --bg-3:   #1C1C1C;
+  --bg-4:   #232323;
+
+  /* Lines / borders */
+  --line:   #2A2A2A;
+  --line-2: #383838;
+
+  /* Text */
+  --text:   #F2F1EE;
+  --text-2: #BDBAB3;
+  --text-3: #888581;
+  --text-4: #5C5A56;
+
+  /* Accent — Autonomy AI orange */
+  --accent:     #FF5C3D;
+  --accent-2:   #FF8467;
+  --accent-ink: #1A0A05;
+
+  /* Status */
+  --good: #7CC79A;
+  --bad:  #E26A6A;
+  --warn: #F5C26B;
+
+  /* Source colors (used for dots, monograms, accents) */
+  --nyt: #C7B8A8;
+  --npr: #E26A6A;
+  --grd: #6EA8DA;
+
+  /* Radii */
+  --radius:    12px;
+  --radius-sm: 8px;
+  --radius-lg: 18px;
+
+  /* Type stacks */
+  --display: 'Anton', 'Oswald', 'Bebas Neue', sans-serif;
+  --serif:   'Fraunces', 'Georgia', serif;
+  --sans:    'Inter', system-ui, -apple-system, sans-serif;
+  --mono:    'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* App-shell background — radial accent glows on a near-black surface.
+ * Apply to <body> or a top-level wrapper. */
+.fl-app-bg {
+  background:
+    radial-gradient(1200px 600px at 85% -10%, rgba(255, 92, 61, 0.08), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(255, 92, 61, 0.05), transparent 60%),
+    var(--bg);
+}
+
+/* Selection */
+::selection { background: var(--accent); color: var(--accent-ink); }
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* Type-scale helpers — match the prototype exactly.
+ * In Tailwind, you can replicate as @apply targets or arbitrary class values. */
+.fl-h-display-xl { font-family: var(--display); font-size: 64px; line-height: 0.95; letter-spacing: 0.005em; }
+.fl-h-display    { font-family: var(--display); font-size: 32px; letter-spacing: 0.01em; }
+.fl-h-article    { font-family: var(--serif);   font-size: 48px; line-height: 1.08; letter-spacing: -0.015em; font-weight: 600; }
+.fl-h-card       { font-family: var(--serif);   font-size: 22px; line-height: 1.15; font-weight: 600; }
+.fl-body         { font-family: var(--serif);   font-size: 16px; line-height: 1.55; color: var(--text-2); }
+.fl-meta         { font-family: var(--mono);    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-3); }
+.fl-tag          { font-family: var(--mono);    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-3); }
+
+/* Animations the prototype uses */
+.fl-pulse  { animation: fl-pulse 1.4s ease-in-out infinite; }
+.fl-fadein { animation: fl-fadein .35s ease-out both; }
+.fl-blink  { animation: fl-blink 1s steps(2, end) infinite; }
+
+@keyframes fl-pulse  { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@keyframes fl-fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes fl-blink  { 50% { opacity: 0; } }
