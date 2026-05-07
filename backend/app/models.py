@@ -65,3 +65,34 @@ class ArticleFake(Base):
     )
 
     article: Mapped["Article"] = relationship("Article", back_populates="fake")
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    __table_args__ = (
+        sa.CheckConstraint(
+            "role IN ('user', 'assistant')",
+            name="ck_chat_messages_role",
+        ),
+        sa.Index(
+            "ix_chat_messages_article_id_created_at",
+            "article_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(sa.Integer, primary_key=True, autoincrement=True)
+    article_id: Mapped[int] = mapped_column(
+        sa.Integer,
+        sa.ForeignKey("articles.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    role: Mapped[str] = mapped_column(sa.String(20), nullable=False)
+    content: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    is_error: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=sa.text("false")
+    )
+    request_id: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    )

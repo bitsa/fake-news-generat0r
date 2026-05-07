@@ -7,3 +7,4 @@
 | get-articles | GET /api/articles Feed Endpoint | 1 | done | [get-articles-spec.md](docs/get-articles-spec.md) | [dev](docs/get-articles-dev.md) | [qa](docs/get-articles-qa.md) | QA passed 16/16 (2026-05-07). |
 | article-transformer | ARQ Transform Pipeline | 1 | done | [spec](docs/article-transformer-spec.md) | [dev](docs/article-transformer-dev.md) | [qa](docs/article-transformer-qa.md) | QA passed 48/48 (2026-05-07). |
 | openai-transform | Real OpenAI call in transform worker (with dev mock kill-switch) | 1 | done | [spec](docs/openai-transform-spec.md) | [dev](docs/openai-transform-dev.md) | [qa](docs/openai-transform-qa.md) | QA passed 45/45 (2026-05-07). |
+| chat-history | Chat — GET history endpoint (BE only) | 1 | in_qa | [spec](docs/chat-history-spec.md) | [dev](docs/chat-history-dev.md) | — | — |

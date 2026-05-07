@@ -13,7 +13,7 @@ from app.db import AsyncSessionLocal
 from app.exceptions import AppError
 from app.logging_config import configure_logging
 from app.redis_client import close_redis
-from app.routers import articles, health, scrape
+from app.routers import articles, chat, health, scrape
 from app.services import scraper, transformer
 
 configure_logging()
@@ -63,3 +63,4 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
 app.include_router(health.router)
 app.include_router(scrape.router)
 app.include_router(articles.router)
+app.include_router(chat.router)
