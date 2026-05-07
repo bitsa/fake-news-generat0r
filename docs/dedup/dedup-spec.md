@@ -136,9 +136,9 @@ explicitly stated otherwise.
 - If two near-duplicate candidates appear inside the **same**
   `POST /api/scrape` run (e.g. two sources publishing the same wire story
   in the same scrape cycle), exactly one of them is inserted; the other
-  is dropped as a near-duplicate against the just-accepted one. The
-  surviving article does not depend on source order, but exactly one is
-  accepted.
+  is dropped as a near-duplicate against the just-accepted one.
+- Exactly one article is accepted; which one wins is implementation-walk-order
+  and must not be asserted by QA.
 - The dropped candidate increments `skipped_near_duplicates`.
 
 ### Cross-source matching
@@ -262,7 +262,7 @@ explicitly stated otherwise.
 ### Non-regression (URL pipeline)
 
 - A scrape run with no near-duplicates and no URL collisions still
-  returns `ingested == fetched` (modulo entries dropped at parse time)
+  returns `inserted == fetched` (modulo entries dropped at parse time)
   and inserts every article with its corresponding `pending`
   `article_fakes` row, exactly as before this task.
 - `make` targets / linters still pass: `ruff` and `black` clean on new
