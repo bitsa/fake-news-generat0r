@@ -62,3 +62,7 @@ Add a unit test that verifies the cron entry is registered and points at recover
 4. in the FE : export type SourceId = "NYT" | "NPR" | "Guardian";
 should we collect it from the articles request instead ?
 let's think a bit
+
+
+5. Cron Job - MUST DO easy win
+6. Zustand Store - because the assignment mentions it

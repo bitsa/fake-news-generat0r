@@ -37,3 +37,19 @@ export interface ArticlesResponse {
 
 export type SourceFilter = "all" | SourceId;
 export type SortMode = "recent" | "source";
+
+export type ChatRole = "user" | "assistant";
+
+export interface ChatMessage {
+  id: number;
+  role: ChatRole;
+  content: string;
+  is_error: boolean;
+  request_id: string | null;
+  created_at: string;
+}
+
+export interface ChatHistoryResponse {
+  article_id: number;
+  messages: ChatMessage[];
+}

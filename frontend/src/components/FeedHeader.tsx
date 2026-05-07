@@ -1,4 +1,6 @@
 import { Logo } from "./Logo";
+import { RefreshFeedButton } from "./RefreshFeedButton";
+import { useRefreshFeed } from "../hooks/useRefreshFeed";
 
 export interface FeedHeaderProps {
   fakeMode: boolean;
@@ -6,6 +8,8 @@ export interface FeedHeaderProps {
 }
 
 export function FeedHeader({ fakeMode, setFakeMode }: FeedHeaderProps) {
+  const { refresh, status, isWorking, error } = useRefreshFeed();
+
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-bg/85 backdrop-blur-md">
       <div className="mx-auto flex max-w-[1240px] items-center gap-6 px-7 py-[14px]">
@@ -15,6 +19,12 @@ export function FeedHeader({ fakeMode, setFakeMode }: FeedHeaderProps) {
           <span>Satirical news, generated</span>
         </div>
         <div className="flex-1" />
+        <RefreshFeedButton
+          onClick={refresh}
+          status={status}
+          isWorking={isWorking}
+          error={error}
+        />
         <button
           type="button"
           onClick={() => setFakeMode(!fakeMode)}

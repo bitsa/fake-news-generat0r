@@ -1,3 +1,22 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer utilities {
+  @keyframes refresh-pulse {
+    0% { transform: rotate(0deg); }
+    18% { transform: rotate(360deg); }
+    100% { transform: rotate(360deg); }
+  }
+  .animate-refresh-pulse {
+    animation: refresh-pulse 3.2s ease-in-out infinite;
+    transform-origin: 50% 50%;
+  }
+  @keyframes refresh-spin {
+    to { transform: rotate(360deg); }
+  }
+  .animate-refresh-spin {
+    animation: refresh-spin 2.4s linear infinite;
+    transform-origin: 50% 50%;
+  }
+}
