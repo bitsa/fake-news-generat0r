@@ -1,0 +1,72 @@
+name: integration-ci
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write CI .env (mock mode, no real OpenAI key needed)
+        run: cp .env.example .env
+
+      - name: Build and start stack
+        run: docker compose up -d --build
+
+      - name: Wait for backend /health to return ok (max 90s)
+        run: |
+          for i in $(seq 1 90); do
+            if curl -fsS http://localhost:8000/health | grep -q '"status":"ok"'; then
+              echo "backend healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "backend never became healthy"
+          docker compose ps
+          exit 1
+
+      - name: Wait for frontend dev server (max 60s)
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:5173/ >/dev/null; then
+              echo "frontend reachable after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "frontend never became reachable"
+          docker compose ps
+          exit 1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install Python 3.12
+        run: uv python install 3.12
+
+      - name: Sync backend dependencies
+        working-directory: backend
+        run: uv sync --locked --extra dev
+
+      - name: Pytest (integration)
+        working-directory: backend
+        run: uv run pytest tests/integration/ -v
+
+      - name: Dump compose logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail=300
+
+      - name: Tear down stack
+        if: always()
+        run: docker compose down -v

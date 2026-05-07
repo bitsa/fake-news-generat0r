@@ -1,5 +1,9 @@
 # AutonomyAI — Fake News Generator
 
+[![backend-ci](https://github.com/bitsa/fake-news-generator/actions/workflows/backend-ci.yml/badge.svg?branch=main)](https://github.com/bitsa/fake-news-generator/actions/workflows/backend-ci.yml)
+[![frontend-ci](https://github.com/bitsa/fake-news-generator/actions/workflows/frontend-ci.yml/badge.svg?branch=main)](https://github.com/bitsa/fake-news-generator/actions/workflows/frontend-ci.yml)
+[![integration-ci](https://github.com/bitsa/fake-news-generator/actions/workflows/integration-ci.yml/badge.svg?branch=main)](https://github.com/bitsa/fake-news-generator/actions/workflows/integration-ci.yml)
+
 A take-home demo that scrapes RSS news feeds, transforms each article into a satirical "fake" version using OpenAI, and lets users chat about each article with streaming responses. The stack is FastAPI + ARQ + Postgres (pgvector) + Redis on the backend, and Vite + React + React Query on the frontend, all wired up via Docker Compose.
 
 ## Setup
