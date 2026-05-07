@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 import { SOURCES } from "../lib/sources";
 import { relTime } from "../lib/time";
 import type { FeedItem } from "../types/api";
@@ -20,10 +22,10 @@ export function ArticleCard({ item, fakeMode, featured = false }: ArticleCardPro
   const tinted = fakeMode;
 
   return (
-    <article
-      onClick={(e) => e.preventDefault()}
+    <Link
+      to={`/articles/${item.id}`}
       className={[
-        "relative overflow-hidden rounded-[12px] border cursor-pointer",
+        "relative block overflow-hidden rounded-[12px] border no-underline cursor-pointer",
         "transition-[border-color,background-color] duration-150",
         featured ? "p-[28px]" : "p-[22px]",
         tinted
@@ -66,7 +68,7 @@ export function ArticleCard({ item, fakeMode, featured = false }: ArticleCardPro
           <DiffIcon /> Compare to original
         </span>
       </div>
-    </article>
+    </Link>
   );
 }
 
