@@ -9,9 +9,12 @@ from app.arq_client import get_arq_pool
 from app.config import settings
 from app.db import get_session
 from app.exceptions import NotFoundError
+from app.models import Article
 from app.schemas.chat import ChatHistoryResponse, ChatMessageOut
-from app.services.chat_generator import ERROR_SENTINEL, MOCK_REPLY
+from app.services.chat_generator import MOCK_REPLY
+from app.services.chat_llm import STREAM_FAILURE_SENTINEL
 from app.services.scraper import IngestResult
+from app.sources import Source
 
 
 def _make_session_cm() -> tuple[MagicMock, AsyncMock]:
@@ -90,6 +93,24 @@ class _PostHarness:
         self.request_session.add = MagicMock()
         self.assistant_session = AsyncMock()
         self.assistant_session.add = MagicMock()
+        # The streaming generator opens AsyncSessionLocal twice: once as the
+        # chat_llm read_session (article + fake + history) and once for the
+        # assistant-row write. Both opens reuse the same captured session.
+        article = Article(
+            id=1,
+            source=Source.NYT,
+            title="orig title",
+            description="orig description",
+            url="http://example.com/a/1",
+        )
+        self.assistant_session.get = AsyncMock(return_value=article)
+        fake_result = MagicMock()
+        fake_result.scalar_one_or_none = MagicMock(return_value=None)
+        history_result = MagicMock()
+        history_result.scalars.return_value.all.return_value = []
+        self.assistant_session.execute = AsyncMock(
+            side_effect=[fake_result, history_result]
+        )
         self._cm = MagicMock()
         self._cm.__aenter__ = AsyncMock(return_value=self.assistant_session)
         self._cm.__aexit__ = AsyncMock(return_value=None)
@@ -657,8 +678,8 @@ async def test_post_chat_error_sentinel_string_byte_equal_in_sse_and_persisted_r
     error_event = next(e for e in events if isinstance(e, dict) and "error" in e)
     sse_payload = error_event["error"]
     persisted = h.assistant_session.add.call_args.args[0].content
-    assert sse_payload == ERROR_SENTINEL
-    assert persisted == ERROR_SENTINEL
+    assert sse_payload == STREAM_FAILURE_SENTINEL
+    assert persisted == STREAM_FAILURE_SENTINEL
     assert sse_payload.encode() == persisted.encode()
 
 
@@ -695,7 +716,7 @@ async def test_get_chat_history_after_error_post_returns_user_false_then_assista
     assistant_msg = _msg_out(
         id=2,
         role="assistant",
-        content=ERROR_SENTINEL,
+        content=STREAM_FAILURE_SENTINEL,
         is_error=True,
         created_at=datetime(2026, 5, 1, 12, 0, 30, tzinfo=UTC),
     )
@@ -710,7 +731,7 @@ async def test_get_chat_history_after_error_post_returns_user_false_then_assista
     msgs = r.json()["messages"]
     assert [m["role"] for m in msgs] == ["user", "assistant"]
     assert [m["is_error"] for m in msgs] == [False, True]
-    assert msgs[1]["content"] == ERROR_SENTINEL
+    assert msgs[1]["content"] == STREAM_FAILURE_SENTINEL
 
 
 # ---- AC16 — works with placeholder OPENAI_API_KEY ----
