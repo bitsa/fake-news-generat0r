@@ -34,3 +34,6 @@ export interface ArticlesResponse {
   pending: number;
   articles: FeedItem[];
 }
+
+export type SourceFilter = "all" | SourceId;
+export type SortMode = "recent" | "source";
