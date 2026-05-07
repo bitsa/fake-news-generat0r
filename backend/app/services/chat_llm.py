@@ -137,7 +137,11 @@ async def token_stream(
         (
             await session.execute(
                 select(ChatMessage)
-                .where(ChatMessage.article_id == article_id)
+                .where(
+                    ChatMessage.article_id == article_id,
+                    ChatMessage.is_error.is_(False),
+                    ChatMessage.role.in_(("user", "assistant")),
+                )
                 .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
                 .limit(settings.chat_history_window + 1)
             )
