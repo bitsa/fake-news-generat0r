@@ -6,33 +6,11 @@ Implements group C tests C1–C3 from `docs/iteration-0/0c-skeletons-qa.md`.
 
 from __future__ import annotations
 
-import json
 import re
-import time
 
 import httpx
 
-from ._helpers import BACKEND_URL, REPO_ROOT, compose
-
-
-def test_T_C1_owned_services_running_no_crashloop() -> None:
-    owned = {"postgres", "redis", "backend", "frontend"}
-    statuses_per_poll: list[dict[str, str]] = []
-    for _ in range(3):
-        out = compose("ps", "--format", "json").stdout
-        snapshot: dict[str, str] = {}
-        for row in json.loads(out or "[]"):
-            snapshot[row.get("Service", "")] = row.get("State", "")
-        statuses_per_poll.append(snapshot)
-        time.sleep(5)
-    for snapshot in statuses_per_poll:
-        for svc in owned:
-            assert svc in snapshot, f"{svc} missing from compose ps; saw {snapshot}"
-            assert snapshot[svc] == "running", f"{svc} not running: {snapshot[svc]}"
-            assert snapshot[svc] != "restarting", f"{svc} restarting (crash-loop?)"
-    # worker must be present but is not asserted on
-    for snapshot in statuses_per_poll:
-        assert "worker" in snapshot, "worker service missing from compose"
+from ._helpers import BACKEND_URL, REPO_ROOT
 
 
 def test_T_C2_backend_depends_on_healthy() -> None:

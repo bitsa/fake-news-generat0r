@@ -29,8 +29,10 @@ jobs:
             fi
             sleep 1
           done
-          echo "backend never became healthy"
-          docker compose ps
+          echo "backend never became healthy — full state below"
+          docker compose ps -a
+          echo "--- backend logs ---"
+          docker compose logs --no-color --tail=200 backend || true
           exit 1
 
       - name: Wait for frontend dev server (max 120s)
