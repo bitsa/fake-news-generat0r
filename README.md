@@ -3,6 +3,7 @@
 [![backend-ci](https://github.com/bitsa/fake-news-generat0r/actions/workflows/backend-ci.yml/badge.svg?branch=main)](https://github.com/bitsa/fake-news-generat0r/actions/workflows/backend-ci.yml)
 [![frontend-ci](https://github.com/bitsa/fake-news-generat0r/actions/workflows/frontend-ci.yml/badge.svg?branch=main)](https://github.com/bitsa/fake-news-generat0r/actions/workflows/frontend-ci.yml)
 [![integration-ci](https://github.com/bitsa/fake-news-generat0r/actions/workflows/integration-ci.yml/badge.svg?branch=main)](https://github.com/bitsa/fake-news-generat0r/actions/workflows/integration-ci.yml)
+[![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/bitsa/fake-news-generat0r?utm_source=oss&utm_medium=github&utm_campaign=bitsa%2Ffake-news-generat0r&labelColor=171717&color=FF570A&label=CodeRabbit+Reviews)](https://coderabbit.ai)
 
 A take-home implementation of the
 [AutonomyAI Fake News Generator brief](./plans/assignment.md). The app scrapes
@@ -147,16 +148,21 @@ sequenceDiagram
         AI-->>W: satirical pair
         W->>DB: UPDATE article_fakes SET title, description,<br/>model, temperature, status='completed'
     else failure
-        W->>DB: DELETE article_fakes WHERE article_id=...<br/>(article reverts to "Processing…")
+        W->>DB: DELETE articles WHERE id=...<br/>(cascade clears the fake row;<br/>next scrape re-inserts and re-enqueues)
     end
 ```
 
 **Durability model.** `article_fakes.transform_status` has only two states:
-`pending` and `completed`. On failure the row is deleted (the article
-reverts to "no fake yet" — UI shows "Processing…"). No `failed` state, no
-`transform_error` column. If the queue is wiped or the worker crashes
-mid-flight, the `pending` row survives and the next cron tick re-enqueues
-anything older than 5 minutes via
+`pending` and `completed`. On transform failure the **parent `articles` row
+is deleted** — `ON DELETE CASCADE` clears the `article_fakes` row (and any
+`chat_messages`, though none exist for an unfinished article since the feed
+and chat both gate on `completed`). The next scrape cycle finds no URL
+conflict, re-inserts the article, and `create_and_enqueue` produces a fresh
+`pending` row + enqueue. No `failed` state, no `transform_error` column, no
+attempts counter, no retry storms — at most one retry per scrape cycle (every
+30 min). If instead the queue is wiped or the worker crashes mid-flight before
+the `except` block runs, the `pending` row survives and the next cron tick
+re-enqueues anything older than 5 minutes via
 [`recover_stale_pending`](./backend/app/services/transformer.py). Redis is
 an optimisation, not the record of intent. Full reasoning in
 [`context.md`](./context.md#transform-durability-model).
@@ -378,12 +384,34 @@ The canonical shared docs at the repo root — read before writing any code:
   points)
 - [`tracker.md`](./tracker.md) — every task across iterations 0–3
 
-Per-task documentation lives under `docs/`, with up to three files per task:
+Per-task documentation lives under `docs/`, with up to three files per task.
+Naming is lenient — the prefix can be a task id (`1.3-spec.md`) or a feature
+slug (`rss-scraper-spec.md`), whichever reads better for the task:
 
-- `{task-id}-spec.md` — what to build (acceptance criteria)
-- `{task-id}-dev.md` — how to build it (implementation plan)
-- `{task-id}-qa.md` — how to verify it (test plan)
+- `{task}-spec.md` — what to build (acceptance criteria)
+- `{task}-dev.md` — how to build it (implementation plan)
+- `{task}-qa.md` — how to verify it (test plan)
+
+These three docs are produced and consumed by a set of project-local Claude
+Code skills under [`.claude/skills/`](./.claude/skills/) that drive the
+spec → dev → qa loop:
+
+| Skill | Stage | What it does |
+|---|---|---|
+| `/write-spec {task}` | spec | Drafts `{task}-spec.md` from a rough idea + scope notes — pure acceptance criteria, no implementation. |
+| `/write-dev {task}` | dev plan | Reads the verified spec and drafts `{task}-dev.md` (implementation plan, file-level). No code, no branch. |
+| `/start-dev {task}` | dev exec | Reads the dev doc, surfaces open questions, branches `feature/{task}-{slug}` from `main`, and implements. |
+| `/write-qa {task}` | qa plan | Black-box audit — maps each spec acceptance criterion to the unit tests dev wrote, flags gaps. Never reads the dev doc. |
+| `/start-qa {task}` | qa exec | Runs the tests, audits coverage against the qa doc, files issues, sets the tracker to `done` or `blocked`. |
+
+The intended workflow:
+
+1. Sketch a rough idea and scope it.
+2. `/write-spec` — produces `-spec.md`. Review and amend.
+3. `/write-dev` — produces `-dev.md`. Review and amend.
+4. `/start-dev` — branches and implements.
+5. `/write-qa` — produces `-qa.md` (coverage audit only).
+6. `/start-qa` — runs tests, files issues, marks done.
 
 `plans/` holds the project brief, per-iteration outlines, and session
-prompts. Historical docs from earlier workflow versions are in
-`plans/obsolete/`.
+prompts.
