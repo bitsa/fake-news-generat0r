@@ -36,10 +36,11 @@ export function ArticleDetailPage() {
   }
 
   if (isError) {
+    if (error) console.error("Failed to load article", error);
     return (
       <DetailShell>
         <InlineNotice
-          text={`Couldn't load article: ${error?.message ?? "Unknown error"}`}
+          text="Couldn't load article right now. Please try again."
           tone="error"
         />
       </DetailShell>
@@ -59,7 +60,7 @@ export function ArticleDetailPage() {
       <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
         <button
           type="button"
-          onClick={() => navigate(-1)}
+          onClick={() => navigate("/")}
           className="inline-flex h-7 items-center gap-2 rounded-full border-0 bg-transparent px-3 font-sans text-[12px] text-text-2 hover:text-text"
         >
           <ArrowLeftIcon size={14} /> Back to feed

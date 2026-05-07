@@ -176,7 +176,11 @@ export function ChatPanel({ item }: ChatPanelProps) {
       </div>
 
       <form onSubmit={onSubmit} className="flex gap-2 px-[14px] pb-[14px] pt-2">
+        <label htmlFor="chat-input" className="sr-only">
+          Ask about this article
+        </label>
         <input
+          id="chat-input"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Ask about this article…"
@@ -184,6 +188,7 @@ export function ChatPanel({ item }: ChatPanelProps) {
         />
         <button
           type="submit"
+          aria-label="Send message"
           disabled={!draft.trim() || isStreaming}
           className={[
             "inline-flex h-[38px] w-[38px] items-center justify-center rounded-full border-0 bg-accent text-accent-ink",

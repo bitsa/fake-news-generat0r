@@ -37,6 +37,7 @@ export async function streamChat(
         } catch {
           /* ignore body parse errors */
         }
+        onError(detail);
         throw new Error(detail);
       }
     },
