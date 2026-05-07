@@ -31,12 +31,12 @@ function WarnIcon() {
       width={18}
       height={18}
       fill="none"
-      stroke="#E26A6A"
+      stroke="currentColor"
       strokeWidth={1.6}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
-      className="shrink-0"
+      className="shrink-0 text-bad"
     >
       <path d="M12 3 2 21h20Z" />
       <path d="M12 10v5M12 18.5v.01" />

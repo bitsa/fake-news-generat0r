@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { ArticleCard } from "../components/ArticleCard";
 import { FeedEmpty } from "../components/FeedEmpty";
@@ -32,6 +32,10 @@ export function FeedPage() {
 
   const { data, isLoading, isError, error } = useArticles();
   const articles = data?.articles ?? [];
+
+  useEffect(() => {
+    if (!isError) setErrorDismissed(false);
+  }, [isError]);
 
   const counts = useMemo<FilterCounts>(() => {
     const c: FilterCounts = { all: articles.length, NYT: 0, NPR: 0, Guardian: 0 };
@@ -96,7 +100,9 @@ export function FeedPage() {
 
         {isLoading && <FeedSkeleton />}
 
-        {!isLoading && !isError && !hasArticles && <FeedEmpty />}
+        {!isLoading && (!isError || errorDismissed) && !hasArticles && (
+          <FeedEmpty />
+        )}
 
         {!isLoading && hasArticles && (
           <>

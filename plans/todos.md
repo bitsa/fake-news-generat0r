@@ -59,6 +59,6 @@ Add a unit test that verifies the cron entry is registered and points at recover
 
 3. when parsing RSS - do we want validation ?
 
-4. in the FE : export type SourceId = "NYT" | "NPR" | "Guardian"; 
-should we collect it from the articles request instead ? 
+4. in the FE : export type SourceId = "NYT" | "NPR" | "Guardian";
+should we collect it from the articles request instead ?
 let's think a bit
