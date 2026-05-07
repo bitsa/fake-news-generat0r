@@ -7,7 +7,7 @@ from arq.connections import RedisSettings
 from app.config import settings
 from app.db import AsyncSessionLocal
 from app.models import Article, ArticleFake
-from app.services import openai_transform, scraper
+from app.services import openai_transform, scraper, transformer
 
 log = logging.getLogger(__name__)
 
@@ -56,6 +56,12 @@ async def transform_article(ctx: dict, article_id: int) -> None:
 
 async def scheduled_scrape(ctx: dict) -> None:
     log.info("worker.cron.scrape.begin")
+    try:
+        async with AsyncSessionLocal() as session:
+            recovered = await transformer.recover_stale_pending(session, ctx["redis"])
+        log.info("worker.cron.recover.ok recovered=%d", recovered)
+    except Exception:
+        log.warning("worker.cron.recover.failed", exc_info=True)
     try:
         result = await scraper.scrape_cycle(ctx["redis"])
         log.info(
