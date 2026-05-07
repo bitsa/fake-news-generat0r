@@ -5,10 +5,12 @@ import pytest
 
 from app.config import settings
 from app.exceptions import NotFoundError
-from app.models import ChatMessage
+from app.models import Article, ChatMessage
 from app.schemas.chat import ChatPostRequest
 from app.services.chat import get_chat_history, post_chat_stream
-from app.services.chat_generator import ERROR_SENTINEL, MOCK_REPLY
+from app.services.chat_generator import MOCK_REPLY
+from app.services.chat_llm import STREAM_FAILURE_SENTINEL
+from app.sources import Source
 
 
 def _msg(
@@ -50,9 +52,29 @@ def _make_request_session(*, article_id_returned: int | None):
 
 def _make_assistant_session_factory():
     """Return (mock_AsyncSessionLocal, captured_session) where captured_session
-    is the AsyncMock that the inner generator will use for the assistant row."""
+    is the AsyncMock used by both chat_llm.token_stream (article + fake +
+    history reads) and the inner _stream_assistant assistant-row writes.
+    The streaming generator opens AsyncSessionLocal twice (once for the
+    chat_llm read session, once for the assistant write); both calls
+    return this same captured AsyncMock."""
     captured_session = AsyncMock()
     captured_session.add = MagicMock()
+
+    article = Article(
+        id=1,
+        source=Source.NYT,
+        title="orig title",
+        description="orig description",
+        url="http://example.com/a/1",
+    )
+    captured_session.get = AsyncMock(return_value=article)
+
+    fake_result = MagicMock()
+    fake_result.scalar_one_or_none = MagicMock(return_value=None)
+    history_result = MagicMock()
+    history_result.scalars.return_value.all.return_value = []
+    captured_session.execute = AsyncMock(side_effect=[fake_result, history_result])
+
     cm = MagicMock()
     cm.__aenter__ = AsyncMock(return_value=captured_session)
     cm.__aexit__ = AsyncMock(return_value=None)
@@ -221,12 +243,12 @@ async def test_post_chat_stream_error_path_writes_assistant_row_with_sentinel():
 
     assert b"[DONE]" not in body
     assert b'"error"' in body
-    assert ERROR_SENTINEL.encode() in body
+    assert STREAM_FAILURE_SENTINEL.encode() in body
     assert captured.add.call_count == 1
     assistant_row = captured.add.call_args.args[0]
     assert assistant_row.role == "assistant"
     assert assistant_row.is_error is True
-    assert assistant_row.content == ERROR_SENTINEL
+    assert assistant_row.content == STREAM_FAILURE_SENTINEL
     captured.commit.assert_awaited_once()
 
 
@@ -242,8 +264,8 @@ async def test_post_chat_stream_error_sentinel_byte_equal_in_sse_and_persisted_r
         body = b"".join([chunk async for chunk in response.body_iterator])
 
     assistant_row = captured.add.call_args.args[0]
-    assert ERROR_SENTINEL.encode() in body
-    assert assistant_row.content == ERROR_SENTINEL
+    assert STREAM_FAILURE_SENTINEL.encode() in body
+    assert assistant_row.content == STREAM_FAILURE_SENTINEL
 
 
 async def test_post_chat_stream_logs_omit_message_body_and_full_reply(caplog):

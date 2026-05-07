@@ -10,7 +10,7 @@ from app.db import AsyncSessionLocal
 from app.exceptions import NotFoundError, ValidationError
 from app.models import Article, ChatMessage
 from app.schemas.chat import ChatHistoryResponse, ChatMessageOut, ChatPostRequest
-from app.services.chat_generator import ERROR_SENTINEL, stream_mock_reply
+from app.services.chat_llm import STREAM_FAILURE_SENTINEL, token_stream
 from app.services.sanitize import clean_text
 
 # NOTE: clean_text() is best-effort sanitization (HTML-decode, tag-strip,
@@ -104,9 +104,10 @@ async def post_chat_stream(
 async def _stream_assistant(article_id: int, message: str) -> AsyncIterator[bytes]:
     tokens: list[str] = []
     try:
-        async for chunk in stream_mock_reply(message):
-            tokens.append(chunk)
-            yield _sse_token(chunk)
+        async with AsyncSessionLocal() as read_session:
+            async for chunk in token_stream(read_session, article_id, message):
+                tokens.append(chunk)
+                yield _sse_token(chunk)
     except Exception as exc:
         log.error(
             "chat.stream.error article_id=%d exc_type=%s",
@@ -118,12 +119,12 @@ async def _stream_assistant(article_id: int, message: str) -> AsyncIterator[byte
                 ChatMessage(
                     article_id=article_id,
                     role="assistant",
-                    content=ERROR_SENTINEL,
+                    content=STREAM_FAILURE_SENTINEL,
                     is_error=True,
                 )
             )
             await assistant_session.commit()
-        yield _sse_error(ERROR_SENTINEL)
+        yield _sse_error(STREAM_FAILURE_SENTINEL)
         return
 
     async with AsyncSessionLocal() as assistant_session:

@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     transform_recovery_threshold_minutes: int = Field(default=5, gt=0)
     chat_message_max_chars: int = Field(default=512, gt=0)
     chat_mock_force_error_token: str | None = None
+    chat_llm_mock: bool = True
+    chat_history_window: int = Field(default=10, gt=0)
+    chat_max_output_tokens: int = Field(default=512, gt=0)
 
 
 settings = Settings()
