@@ -32,3 +32,6 @@ Thumbs.db
 
 # Docker bind-mount staging (if any local .pgdata used)
 .pgdata/
+
+# Personal recording notes (not part of the public repo)
+loom-script.md
