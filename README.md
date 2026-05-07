@@ -139,7 +139,7 @@ sequenceDiagram
     API->>DB: INSERT articles ON CONFLICT (url) DO NOTHING
     API->>DB: INSERT article_fakes (transform_status='pending')
     API->>Q: enqueue transform_article(article_id) [best-effort]
-    API-->>U: 202 { inserted, fetched }
+    API-->>U: 202 { inserted, fetched, skipped_url_duplicates, skipped_near_duplicates, embedding_calls }
 
     Note over W,AI: out-of-band, decoupled from HTTP
     Q->>W: dequeue transform_article(id)
@@ -317,7 +317,7 @@ flowchart LR
 `article_embeddings` is **sparse on purpose**: most articles never enter
 the ambiguous Jaccard band, so most rows in `articles` have no sibling
 embedding. Cold incumbents that *do* get embedded during the cosine pass
-have their vector persisted too — the contract resolved decision in
+have their vector persisted too — the decision documented in
 [`docs/dedup/dedup-spec.md`](./docs/dedup/dedup-spec.md) is that the
 first ambiguous-band hit may legitimately produce `embedding_calls = 2`
 (candidate + cold incumbent), and persistence makes that a one-time cost.

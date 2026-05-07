@@ -161,7 +161,6 @@ async def ingest_all(session: AsyncSession) -> IngestResult:
                         cand.url,
                         decision.matched_article_id,
                     )
-                    await session.commit()
                     continue
 
                 session.add(cand)

@@ -420,14 +420,15 @@ async def test_response_shape_has_exactly_five_integer_keys(monkeypatch):
         patch.object(scrape_router.transformer, "create_and_enqueue", new=fake_enqueue),
     ):
         body = await scrape_router.scrape(session=session, arq_pool=AsyncMock())
-    assert set(body.keys()) == {
+    payload = body.model_dump()
+    assert set(payload.keys()) == {
         "inserted",
         "fetched",
         "skipped_url_duplicates",
         "skipped_near_duplicates",
         "embedding_calls",
     }
-    assert all(isinstance(v, int) for v in body.values())
+    assert all(isinstance(v, int) for v in payload.values())
 
 
 async def test_response_embedding_calls_is_zero_when_no_ambiguous_band_candidate():
