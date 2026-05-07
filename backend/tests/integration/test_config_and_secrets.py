@@ -65,5 +65,3 @@ def test_T_D4_secret_value_not_in_logs() -> None:
     assert (
         leaks == []
     ), f"secret values leaked in backend logs: {[name for name, _ in leaks]}"
-
-
