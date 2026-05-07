@@ -33,17 +33,19 @@ jobs:
           docker compose ps
           exit 1
 
-      - name: Wait for frontend dev server (max 60s)
+      - name: Wait for frontend dev server (max 120s)
         run: |
-          for i in $(seq 1 60); do
+          for i in $(seq 1 120); do
             if curl -fsS http://localhost:5173/ >/dev/null; then
               echo "frontend reachable after ${i}s"
               exit 0
             fi
             sleep 1
           done
-          echo "frontend never became reachable"
-          docker compose ps
+          echo "frontend never became reachable — full state below"
+          docker compose ps -a
+          echo "--- frontend logs ---"
+          docker compose logs --no-color --tail=200 frontend || true
           exit 1
 
       - name: Install uv
