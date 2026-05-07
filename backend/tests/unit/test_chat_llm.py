@@ -242,7 +242,7 @@ async def test_real_stream_emits_each_non_empty_delta_as_token_string(monkeypatc
     assert chunks == ["alpha", "beta", "gamma"]
 
 
-async def test_real_stream_skips_empty_and_whitespace_only_deltas(monkeypatch):
+async def test_real_stream_skips_empty_and_none_deltas(monkeypatch):
     monkeypatch.setattr(settings, "chat_llm_mock", False)
     fake_stream = _FakeStream(["alpha", "", "  ", None, "beta"])
     cls, _ = _make_async_openai(fake_stream)
@@ -250,7 +250,7 @@ async def test_real_stream_skips_empty_and_whitespace_only_deltas(monkeypatch):
     with patch("openai.AsyncOpenAI", cls):
         chunks = [c async for c in chat_llm._stream_real_llm([])]
 
-    assert chunks == ["alpha", "beta"]
+    assert chunks == ["alpha", "  ", "beta"]
 
 
 async def test_real_stream_concatenated_yielded_chunks_equal_full_assistant_text(

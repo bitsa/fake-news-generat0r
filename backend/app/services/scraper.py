@@ -7,12 +7,15 @@ from typing import Any
 
 import feedparser
 import httpx
+from arq.connections import ArqRedis
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.db import AsyncSessionLocal
 from app.exceptions import ServiceUnavailableError
 from app.models import Article
+from app.services import transformer
 from app.services.sanitize import clean_text
 from app.sources import FEED_URLS, Source
 
@@ -151,3 +154,10 @@ async def ingest_all(session: AsyncSession) -> IngestResult:
         failed,
     )
     return IngestResult(inserted=all_inserted, fetched=total_fetched)
+
+
+async def scrape_cycle(arq_pool: ArqRedis) -> IngestResult:
+    async with AsyncSessionLocal() as session:
+        result = await ingest_all(session)
+        await transformer.create_and_enqueue(session, arq_pool, result.inserted)
+    return result

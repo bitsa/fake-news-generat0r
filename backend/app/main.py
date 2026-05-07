@@ -37,10 +37,7 @@ async def lifespan(app: FastAPI):
         log.info("startup.scrape.begin")
         async with AsyncSessionLocal() as session:
             await transformer.recover_stale_pending(session, app.state.arq_pool)
-            result = await scraper.ingest_all(session)
-            await transformer.create_and_enqueue(
-                session, app.state.arq_pool, result.inserted
-            )
+        await scraper.scrape_cycle(app.state.arq_pool)
         log.info("startup.scrape.complete")
     except Exception:
         log.warning("startup.scrape.failed", exc_info=True)
