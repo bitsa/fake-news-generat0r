@@ -44,7 +44,12 @@ export function RefreshFeedButton({
         <span>{LABEL[status]}</span>
       </button>
       {showError && (
-        <span className="mt-1 font-mono text-[10px] uppercase tracking-[0.08em] text-bad">
+        <span
+          role="alert"
+          aria-live="assertive"
+          aria-atomic="true"
+          className="mt-1 font-mono text-[10px] uppercase tracking-[0.08em] text-bad"
+        >
           {error}
         </span>
       )}

@@ -55,6 +55,7 @@ export function useRefreshFeed(): UseRefreshFeed {
           if (cancelledRef.current) return;
           try {
             const data = await getArticles();
+            if (cancelledRef.current) return;
             queryClient.setQueryData<ArticlesResponse>(["articles"], data);
             if (data.pending === 0) {
               setStatus("done");
