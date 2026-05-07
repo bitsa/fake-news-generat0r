@@ -1,16 +1,17 @@
 import sqlalchemy as sa
 
-from app.models import Article, ArticleFake, Base
+from app.models import Article, ArticleFake, Base, ChatMessage
 from app.sources import Source
 
 
 def test_tablenames():
     assert Article.__tablename__ == "articles"
     assert ArticleFake.__tablename__ == "article_fakes"
+    assert ChatMessage.__tablename__ == "chat_messages"
 
 
 def test_metadata_tables():
-    assert set(Base.metadata.tables) == {"articles", "article_fakes"}
+    assert set(Base.metadata.tables) == {"articles", "article_fakes", "chat_messages"}
 
 
 def test_article_source_enum_binding():

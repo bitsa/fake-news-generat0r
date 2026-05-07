@@ -16,7 +16,9 @@ def _load_migration():
         spec.loader.exec_module(module)
         loaded.append((module, path))
 
-    roots = [(m, p) for (m, p) in loaded if getattr(m, "down_revision", object()) is None]
+    roots = [
+        (m, p) for (m, p) in loaded if getattr(m, "down_revision", object()) is None
+    ]
     assert len(roots) == 1, f"Expected 1 root migration, found {len(roots)}"
     module, path = roots[0]
     return module, path.read_text()

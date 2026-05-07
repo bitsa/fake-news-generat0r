@@ -57,5 +57,4 @@ Add a unit test that verifies the cron entry is registered and points at recover
 
 2. Good to have : Judge model for generated fake articles
 
-
-
+3. when parsing RSS - do we want validation ?
