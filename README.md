@@ -15,6 +15,8 @@ Stack: **FastAPI + ARQ + Postgres (pgvector) + Redis** on the backend,
 **Vite + React + React Query + Tailwind** on the frontend, all wired up via
 **Docker Compose**.
 
+![News feed](docs/images/feed.png)
+
 ---
 
 ## Table of contents
@@ -170,6 +172,8 @@ Two React surfaces backed by React Query. All server state goes through
   source filter chips, refresh button, pending/empty/error states.
 - **Article detail** — full satirical version with a toggle to show the
   original side-by-side, plus the embedded chat panel for that article.
+
+![Article detail with original/fake toggle and chat panel](docs/images/article-detail.png)
 
 The source filter lives in URL query params, not component state, so the
 view survives refresh and is shareable. Articles are persisted in
