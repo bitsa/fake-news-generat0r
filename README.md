@@ -151,7 +151,8 @@ sequenceDiagram
         AI-->>W: satirical pair
         W->>DB: UPDATE article_fakes SET title, description, model, temperature, status='completed'
     else failure
-        W->>DB: DELETE articles WHERE id=... — cascade clears the fake row; next scrape re-inserts and re-enqueues
+        W->>DB: DELETE articles WHERE id=...
+        Note over W,DB: cascade clears the fake row; next scrape re-inserts and re-enqueues
     end
 ```
 
