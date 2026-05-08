@@ -25,6 +25,7 @@ dist/
 .idea/
 .vscode/
 .claude/settings.local.json
+.claude/*.lock
 
 # OS
 .DS_Store

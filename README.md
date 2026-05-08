@@ -1,4 +1,4 @@
-# AutonomyAI — Fake News Generator
+# Fake News Generator
 
 [![backend-ci](https://github.com/bitsa/fake-news-generat0r/actions/workflows/backend-ci.yml/badge.svg?branch=main)](https://github.com/bitsa/fake-news-generat0r/actions/workflows/backend-ci.yml)
 [![frontend-ci](https://github.com/bitsa/fake-news-generat0r/actions/workflows/frontend-ci.yml/badge.svg?branch=main)](https://github.com/bitsa/fake-news-generat0r/actions/workflows/frontend-ci.yml)
@@ -6,7 +6,7 @@
 [![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/bitsa/fake-news-generat0r?utm_source=oss&utm_medium=github&utm_campaign=bitsa%2Ffake-news-generat0r&labelColor=171717&color=FF570A&label=CodeRabbit+Reviews)](https://coderabbit.ai)
 
 A take-home implementation of the
-[AutonomyAI Fake News Generator brief](./plans/assignment.md). The app scrapes
+[Fake News Generator brief](./plans/assignment.md). The app scrapes
 RSS feeds from NYT, NPR, and The Guardian, transforms each article into a
 satirical version with OpenAI on a background worker, exposes a news-feed UI
 with original/fake toggle and source filtering, and provides a per-article
@@ -312,7 +312,7 @@ flowchart TD
 flowchart LR
     A[articles<br/>existing 1:1 with article_fakes]
     AF[article_fakes<br/>pending → completed]
-    AE[(article_embeddings<br/>article_id PK + cascade FK<br/>vector(1536), model, created_at)]
+    AE[("article_embeddings<br/>article_id PK + cascade FK<br/>vector(1536), model, created_at")]
 
     A --> AF
     A -.->|sparse 1:0..1<br/>ambiguous-band winners only| AE
