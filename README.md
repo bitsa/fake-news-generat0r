@@ -131,27 +131,27 @@ sequenceDiagram
     participant U as Client
     participant API as FastAPI
     participant DB as Postgres
-    participant Q as Redis (ARQ)
+    participant Q as Redis ARQ
     participant W as ARQ Worker
     participant AI as OpenAI
 
     U->>API: POST /api/scrape
-    API->>API: fetch + parse RSS (NYT, NPR, Guardian)
-    API->>API: sanitize (HTML-decode, strip, collapse)
-    API->>DB: INSERT articles ON CONFLICT (url) DO NOTHING
-    API->>DB: INSERT article_fakes (transform_status='pending')
-    API->>Q: enqueue transform_article(article_id) [best-effort]
+    API->>API: fetch + parse RSS NYT, NPR, Guardian
+    API->>API: sanitize HTML-decode, strip, collapse
+    API->>DB: INSERT articles ON CONFLICT url DO NOTHING
+    API->>DB: INSERT article_fakes transform_status='pending'
+    API->>Q: enqueue transform_article article_id s1
     API-->>U: 202 { inserted, fetched, skipped_url_duplicates, skipped_near_duplicates, embedding_calls }
 
     Note over W,AI: out-of-band, decoupled from HTTP
-    Q->>W: dequeue transform_article(id)
+    Q->>W: dequeue transform_article id
     W->>DB: SELECT article + fake row
-    W->>AI: chat.completions (satirical title + description)
+    W->>AI: chat.completions satirical title + description
     alt success
         AI-->>W: satirical pair
         W->>DB: UPDATE article_fakes SET title, description, model, temperature, status='completed'
     else failure
-        W->>DB: DELETE the articles row. cascade clears the fake row; next scrape re-inserts and re-enqueues
+        W->>DB: DELETE the articles row. cascade clears the fake row next scrape re-inserts and re-enqueues
     end
 ```
 
