@@ -1,4 +1,4 @@
-# AutonomyAI — Fake News Generator
+# Fake News Generator
 
 [![backend-ci](https://github.com/bitsa/fake-news-generat0r/actions/workflows/backend-ci.yml/badge.svg?branch=main)](https://github.com/bitsa/fake-news-generat0r/actions/workflows/backend-ci.yml)
 [![frontend-ci](https://github.com/bitsa/fake-news-generat0r/actions/workflows/frontend-ci.yml/badge.svg?branch=main)](https://github.com/bitsa/fake-news-generat0r/actions/workflows/frontend-ci.yml)
@@ -6,7 +6,7 @@
 [![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/bitsa/fake-news-generat0r?utm_source=oss&utm_medium=github&utm_campaign=bitsa%2Ffake-news-generat0r&labelColor=171717&color=FF570A&label=CodeRabbit+Reviews)](https://coderabbit.ai)
 
 A take-home implementation of the
-[AutonomyAI Fake News Generator brief](./plans/assignment.md). The app scrapes
+[Fake News Generator brief](./plans/assignment.md). The app scrapes
 RSS feeds from NYT, NPR, and The Guardian, transforms each article into a
 satirical version with OpenAI on a background worker, exposes a news-feed UI
 with original/fake toggle and source filtering, and provides a per-article
@@ -131,27 +131,28 @@ sequenceDiagram
     participant U as Client
     participant API as FastAPI
     participant DB as Postgres
-    participant Q as Redis (ARQ)
+    participant Q as Redis ARQ
     participant W as ARQ Worker
     participant AI as OpenAI
 
     U->>API: POST /api/scrape
-    API->>API: fetch + parse RSS (NYT, NPR, Guardian)
-    API->>API: sanitize (HTML-decode, strip, collapse)
-    API->>DB: INSERT articles ON CONFLICT (url) DO NOTHING
-    API->>DB: INSERT article_fakes (transform_status='pending')
-    API->>Q: enqueue transform_article(article_id) [best-effort]
+    API->>API: fetch + parse RSS NYT, NPR, Guardian
+    API->>API: sanitize HTML-decode, strip, collapse
+    API->>API: dedup URL + near-duplicate check
+    API->>DB: INSERT articles ON CONFLICT url DO NOTHING
+    API->>DB: INSERT article_fakes transform_status='pending'
+    API->>Q: enqueue transform_article article_id s1
     API-->>U: 202 { inserted, fetched, skipped_url_duplicates, skipped_near_duplicates, embedding_calls }
 
     Note over W,AI: out-of-band, decoupled from HTTP
-    Q->>W: dequeue transform_article(id)
+    Q->>W: dequeue transform_article id
     W->>DB: SELECT article + fake row
-    W->>AI: chat.completions (satirical title + description)
+    W->>AI: chat.completions satirical title + description
     alt success
         AI-->>W: satirical pair
-        W->>DB: UPDATE article_fakes SET title, description,<br/>model, temperature, status='completed'
+        W->>DB: UPDATE article_fakes SET title, description, model, temperature, status='completed'
     else failure
-        W->>DB: DELETE articles WHERE id=...<br/>(cascade clears the fake row;<br/>next scrape re-inserts and re-enqueues)
+        W->>DB: DELETE the articles row. cascade clears the fake row next scrape re-inserts and re-enqueues
     end
 ```
 
@@ -312,7 +313,7 @@ flowchart TD
 flowchart LR
     A[articles<br/>existing 1:1 with article_fakes]
     AF[article_fakes<br/>pending → completed]
-    AE[(article_embeddings<br/>article_id PK + cascade FK<br/>vector(1536), model, created_at)]
+    AE[("article_embeddings<br/>article_id PK + cascade FK<br/>vector(1536), model, created_at")]
 
     A --> AF
     A -.->|sparse 1:0..1<br/>ambiguous-band winners only| AE

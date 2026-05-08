@@ -82,7 +82,7 @@ export function FeedPage() {
           right={
             hasArticles ? (
               <FeedMeta
-                total={data?.total ?? articles.length}
+                total={articles.length}
                 sourceCount={SOURCE_IDS.length}
                 lastUpdatedAt={lastUpdatedAt}
               />
