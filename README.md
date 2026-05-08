@@ -149,9 +149,9 @@ sequenceDiagram
     W->>AI: chat.completions (satirical title + description)
     alt success
         AI-->>W: satirical pair
-        W->>DB: UPDATE article_fakes SET title, description,<br/>model, temperature, status='completed'
+        W->>DB: UPDATE article_fakes SET title, description, model, temperature, status='completed'
     else failure
-        W->>DB: DELETE articles WHERE id=...<br/>(cascade clears the fake row;<br/>next scrape re-inserts and re-enqueues)
+        W->>DB: DELETE articles WHERE id=... — cascade clears the fake row; next scrape re-inserts and re-enqueues
     end
 ```
 
