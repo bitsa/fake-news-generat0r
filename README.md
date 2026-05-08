@@ -138,6 +138,7 @@ sequenceDiagram
     U->>API: POST /api/scrape
     API->>API: fetch + parse RSS NYT, NPR, Guardian
     API->>API: sanitize HTML-decode, strip, collapse
+    API->>API: dedup URL + near-duplicate check
     API->>DB: INSERT articles ON CONFLICT url DO NOTHING
     API->>DB: INSERT article_fakes transform_status='pending'
     API->>Q: enqueue transform_article article_id s1
